@@ -36,7 +36,9 @@ TEST_FORCE_LINK(test_gradient)
 
 namespace TestGradient {
 
-TEST_CASE("[Gradient] Default gradient") {
+#ifdef TOOLS_ENABLED
+
+TEST_CASE("[Gradient][Editor] Default gradient, initialized via editor") {
 	// Black-white gradient.
 	Ref<Gradient> gradient = memnew(Gradient);
 
@@ -64,6 +66,35 @@ TEST_CASE("[Gradient] Default gradient") {
 	CHECK_MESSAGE(
 			gradient->get_color_at_offset(1234.0).is_equal_approx(Color(1, 1, 1)),
 			"Default gradient should return the expected interpolated value at offset 1234.0.");
+}
+
+#endif // TOOLS_ENABLED
+
+TEST_CASE("[Gradient] Default gradient, initialized via code") {
+	// Empty gradient.
+	Ref<Gradient> gradient = memnew(Gradient);
+
+	CHECK_MESSAGE(
+			gradient->get_point_count() == 0,
+			"Empty gradient should have a point count of 0.");
+
+	CHECK_MESSAGE(
+			gradient->get_color_at_offset(0.0).is_same(Color(0, 0, 0, 1)),
+			"Empty gradient should return the expected default value at offset 0.0.");
+	CHECK_MESSAGE(
+			gradient->get_color_at_offset(0.5).is_same(Color(0, 0, 0, 1)),
+			"Empty gradient should return the expected default value at offset 0.5.");
+	CHECK_MESSAGE(
+			gradient->get_color_at_offset(0.0).is_same(Color(0, 0, 0, 1)),
+			"Empty gradient should return the expected default value at offset 1.0.");
+
+	// Out of bounds checks.
+	CHECK_MESSAGE(
+			gradient->get_color_at_offset(-1.0).is_same(Color(0, 0, 0, 1)),
+			"Empty gradient should return the expected default value at offset -1.0.");
+	CHECK_MESSAGE(
+			gradient->get_color_at_offset(1234.0).is_same(Color(0, 0, 0, 1)),
+			"Empty gradient should return the expected default value at offset 1234.0.");
 }
 
 TEST_CASE("[Gradient] Custom gradient (points specified in order)") {

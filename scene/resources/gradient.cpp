@@ -34,12 +34,14 @@
 #include "core/object/class_db.h"
 
 Gradient::Gradient() {
-	//Set initial gradient transition from black to white
-	points.resize(2);
-	points[0].color = Color(0, 0, 0, 1);
-	points[0].offset = 0;
-	points[1].color = Color(1, 1, 1, 1);
-	points[1].offset = 1;
+	// Set initial gradient transition from black to white if created in editor
+	if (Engine::get_singleton()->is_editor_hint()) {
+		points.resize(2);
+		points[0].color = Color(0, 0, 0, 1);
+		points[0].offset = 0;
+		points[1].color = Color(1, 1, 1, 1);
+		points[1].offset = 1;
+	}
 }
 
 Gradient::~Gradient() {

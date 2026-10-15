@@ -77,7 +77,7 @@
 		</method>
 	</methods>
 	<members>
-		<member name="colors" type="PackedColorArray" setter="set_colors" getter="get_colors" default="PackedColorArray(0, 0, 0, 1, 1, 1, 1, 1)">
+		<member name="colors" type="PackedColorArray" setter="set_colors" getter="get_colors" default="PackedColorArray()">
 			Gradient's colors as a [PackedColorArray].
 			[b]Note:[/b] Setting this property updates all colors at once. To update any color individually use [method set_color].
 		</member>
@@ -88,7 +88,7 @@
 		<member name="interpolation_mode" type="int" setter="set_interpolation_mode" getter="get_interpolation_mode" enum="Gradient.InterpolationMode" default="0">
 			The algorithm used to interpolate between points of the gradient.
 		</member>
-		<member name="offsets" type="PackedFloat32Array" setter="set_offsets" getter="get_offsets" default="PackedFloat32Array(0, 1)">
+		<member name="offsets" type="PackedFloat32Array" setter="set_offsets" getter="get_offsets" default="PackedFloat32Array()">
 			Gradient's offsets as a [PackedFloat32Array].
 			[b]Note:[/b] Setting this property updates all offsets at once. To update any offset individually use [method set_offset].
 		</member>
