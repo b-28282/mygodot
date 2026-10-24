@@ -2564,10 +2564,9 @@ const ShaderLanguage::BuiltinFuncDef ShaderLanguage::builtin_func_defs[] = {
 	{ "vec4", TYPE_VEC4, { TYPE_VEC2, TYPE_FLOAT, TYPE_VEC2, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
 	{ "vec4", TYPE_VEC4, { TYPE_VEC2, TYPE_FLOAT, TYPE_VEC3, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
 	{ "vec4", TYPE_VEC4, { TYPE_VEC2, TYPE_FLOAT, TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
-	{ "vec4", TYPE_VEC4, { TYPE_VEC3, TYPE_VEC2 , TYPE_VOID }, { "" }, TAG_GLOBAL, false },
-	{ "vec4", TYPE_VEC4, { TYPE_VEC3, TYPE_VEC3 , TYPE_VOID }, { "" }, TAG_GLOBAL, false },
-	{ "vec4", TYPE_VEC4, { TYPE_VEC3, TYPE_VEC4 , TYPE_VOID }, { "" }, TAG_GLOBAL, false },
-
+	{ "vec4", TYPE_VEC4, { TYPE_VEC3, TYPE_VEC2, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_VEC3, TYPE_VEC3, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_VEC3, TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
 
 	// Conversion scalars.
 
@@ -3722,327 +3721,10 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, const FunctionI
 			return true;
 		}
 	}
-
-	bool failed_builtin = false;
-	bool unsupported_builtin = false;
-	int builtin_idx = 0;
-
-	if (argcount <= 4) {
-		// Test builtins.
-		int idx = 0;
-		int full_match_index = 0;
-
-		while (builtin_func_defs[idx].name) {
-			if (completion_class != builtin_func_defs[idx].tag) {
-				idx++;
-				continue;
-			}
-
-			if (name != builtin_func_defs[idx].name) {
-				idx++;
-				continue;
-			}
-
-			bool fail = false;
-
-			for (int i = 0; i < argcount; i++) {
-				if (arg_types[i] != builtin_func_defs[idx].args[i]) {
-					fail = true;
-					break;
-				}
-			}
-
-			if (!fail) {
-				// Full match.
-				full_match_index = idx;
-				break;
-			}
-
-			idx++;
-		}
-		idx = full_match_index;
-
-		while (builtin_func_defs[idx].name) {
-			if (completion_class != builtin_func_defs[idx].tag) {
-				idx++;
-				continue;
-			}
-
-			if (name != builtin_func_defs[idx].name) {
-				idx++;
-				continue;
-			}
-
-			failed_builtin = true;
-			bool fail = false;
-			for (int i = 0; i < argcount; i++) {
-				Node::Type type = p_func->arguments[i + 1]->type;
-				if (type == Node::NODE_TYPE_ARRAY) {
-					const ArrayNode *anode = static_cast<const ArrayNode *>(p_func->arguments[i + 1]);
-					if (anode->call_expression == nullptr && !anode->is_indexed()) {
-						fail = true;
-						break;
-					}
-				}
-
-				if (get_scalar_type(arg_types[i]) != arg_types[i]) {
-					if (arg_types[i] != builtin_func_defs[idx].args[i]) {
-						fail = true;
-						break;
-					}
-					continue;
-				}
-
-				bool converted = false;
-				switch (type) {
-					case Node::NODE_TYPE_CONSTANT:
-						converted = convert_constant(static_cast<ConstantNode *>(p_func->arguments[i + 1]), builtin_func_defs[idx].args[i], nullptr, is_builtin_vec_constructor(name));
-						break;
-					case Node::NODE_TYPE_OPERATOR:
-						converted = convert_operator(static_cast<OperatorNode *>(p_func->arguments[i + 1]), builtin_func_defs[idx].args[i], nullptr, is_builtin_vec_constructor(name));
-						break;
-					default:
-						break;
-				}
-
-				if (!converted && arg_types[i] != builtin_func_defs[idx].args[i]) {
-					fail = true;
-					break;
-				}
-			}
-
-			if (fail) {
-				idx++;
-				continue;
-			}
-
-			if (RenderingServer::get_singleton()->is_low_end() && builtin_func_defs[idx].high_end) {
-				unsupported_builtin = true;
-				builtin_idx = idx;
-				idx++;
-				continue;
-			}
-
-			if (argcount < 4 && builtin_func_defs[idx].args[argcount] != TYPE_VOID) {
-				idx++; // Make sure the number of arguments matches.
-				continue;
-			}
-
-			
-			int constarg_idx = 0;
-			bool error = false;
-			int min, max;
-			while (builtin_func_const_args[constarg_idx].name) {
-				if (String(name) != builtin_func_const_args[constarg_idx].name) {
-					constarg_idx++;
-					continue;
-				}
-				int arg = builtin_func_const_args[constarg_idx].arg + 1;
-				if (p_func->arguments.size() <= arg) {
-					break;
-				}
-
-				min = builtin_func_const_args[constarg_idx].min;
-				max = builtin_func_const_args[constarg_idx].max;
-
-				Vector<Scalar> values = _get_node_values(p_block, p_function_info, p_func->arguments[arg]);
-				if (p_func->arguments[arg]->get_datatype() != TYPE_INT || values.is_empty()) {
-					error = true;
-					break;
-				}
-				if (values[0].sint < min || values[0].sint > max) {
-					error = true;
-					break;
-				}
-
-				constarg_idx++;
-			}
-			if (error) {
-				_set_error(vformat(RTR("Expected integer constant within [%d..%d] range."), min, max));
-				return false;
-			}
-			
-
-			// Make sure it's not an out argument used in the wrong way.
-			int outarg_idx = 0;
-			while (builtin_func_out_args[outarg_idx].name) {
-				if (String(name) != builtin_func_out_args[outarg_idx].name) {
-					outarg_idx++;
-					continue;
-				}
-				for (int arg = 0; arg < BuiltinFuncOutArgs::MAX_ARGS; arg++) {
-					int arg_idx = builtin_func_out_args[outarg_idx].arguments[arg];
-					if (arg_idx == -1) {
-						break;
-					}
-					if (arg_idx >= argcount) {
-						break;
-					}
-					Node::Type type = p_func->arguments[arg_idx + 1]->type;
-					if (type != Node::NODE_TYPE_VARIABLE && type != Node::NODE_TYPE_MEMBER && type != Node::NODE_TYPE_ARRAY) {
-						_set_error(vformat(RTR("Argument %d of function '%s' is not a variable, array, or member."), arg_idx + 1, String(name)));
-						return false;
-					}
-
-					bool is_const = false;
-					switch (type) {
-						case Node::NODE_TYPE_ARRAY: {
-							ArrayNode *an = static_cast<ArrayNode *>(p_func->arguments[arg_idx + 1]);
-							is_const = an->is_const;
-							break;
-						}
-						case Node::NODE_TYPE_MEMBER: {
-							MemberNode *mn = static_cast<MemberNode *>(p_func->arguments[arg_idx + 1]);
-							is_const = mn->basetype_const;
-							break;
-						}
-						case Node::NODE_TYPE_VARIABLE: {
-							VariableNode *vn = static_cast<VariableNode *>(p_func->arguments[arg_idx + 1]);
-							if (vn->is_const) {
-								is_const = true;
-								break;
-							}
-							StringName varname = vn->name;
-							if (shader->uniforms.has(varname)) {
-								is_const = true;
-								break;
-							}
-							if (shader->varyings.has(varname)) {
-								_set_error(vformat(RTR("Varyings cannot be passed for the '%s' parameter."), "out"));
-								return false;
-							}
-							if (p_function_info.built_ins.has(varname)) {
-								BuiltInInfo info = p_function_info.built_ins[varname];
-								is_const = info.constant;
-							}
-							break;
-						}
-						default:
-							_set_error(vformat(RTR("Argument %d of function '%s' is not a variable, array, or member."), arg_idx + 1, String(name)));
-							return false;
-					}
-
-					if (is_const) {
-						_set_error(vformat(RTR("A constant value cannot be passed for the '%s' parameter."), "out"));
-						return false;
-					}
-
-					StringName var_name;
-					switch (type) {
-						case Node::NODE_TYPE_VARIABLE:
-							var_name = static_cast<const VariableNode *>(p_func->arguments[arg_idx + 1])->name;
-						case Node::NODE_TYPE_ARRAY:
-							var_name = static_cast<const ArrayNode *>(p_func->arguments[arg_idx + 1])->name;
-							break;
-						case Node::NODE_TYPE_MEMBER: {
-							Node *n = static_cast<const MemberNode *>(p_func->arguments[arg_idx + 1])->owner;
-							while (n->type == Node::NODE_TYPE_MEMBER) {
-								n = static_cast<const MemberNode *>(n)->owner;
-							}
-							switch (n->type) {
-								case Node::NODE_TYPE_VARIABLE:
-									var_name = static_cast<const VariableNode *>(n)->name;
-									break;
-								case Node::NODE_TYPE_ARRAY:
-									var_name = static_cast<const ArrayNode *>(n)->name;
-									break;
-								default:
-									_set_error(vformat(RTR("Argument %d of function '%s' is not a variable, array, or member."), arg_idx + 1, String(name)));
-									return false;
-							}
-						}
-						default:
-							break;
-					}
-
-					const BlockNode *b = p_block;
-					bool valid = false;
-					while (b) {
-						if (b->variables.has(var_name) || p_function_info.built_ins.has(var_name)) {
-							valid = true;
-							break;
-						}
-						if (b->parent_function) {
-							for (int i = 0; i < b->parent_function->arguments.size(); i++) {
-								if (b->parent_function->arguments[i].name == var_name) {
-									valid = true;
-									break;
-								}
-							}
-						}
-						b = b->parent_block;
-					}
-
-					if (!valid) {
-						_set_error(vformat(RTR("Argument %d of function '%s' can only take a local variable, array, or member."), arg_idx + 1, String(name)));
-						return false;
-					}
-				}
-				outarg_idx++;
-			}
-			// Implicitly convert values if possible.
-			for (int i = 0; i < argcount; i++) {
-				if (get_scalar_type(arg_types[i]) != arg_types[i] || arg_types[i] == builtin_func_defs[idx].args[i] || p_func->arguments[i + 1]->type != Node::NODE_TYPE_CONSTANT) {
-					// Can't do implicit conversion here.
-					continue;
-				}
-
-				// This is an implicit conversion.
-				ConstantNode *constant = static_cast<ConstantNode *>(p_func->arguments[i + 1]);
-				ConstantNode *conversion = alloc_node<ConstantNode>();
-
-				conversion->datatype = builtin_func_defs[idx].args[i];
-				conversion->values.resize(1);
-
-				convert_constant(constant, builtin_func_defs[idx].args[i], conversion->values.ptrw(), is_builtin_vec_constructor(name));
-				p_func->arguments.write[i + 1] = conversion;
-			}
-
-			if (r_ret_type) {
-				*r_ret_type = builtin_func_defs[idx].rettype;
-			}
-
-			return true;
-
-			idx++;
-		}
-	}
-
-	if (unsupported_builtin) {
-		String arglist = "";
-		for (int i = 0; i < argcount; i++) {
-			if (i > 0) {
-				arglist += ", ";
-			}
-			arglist += get_datatype_name(builtin_func_defs[builtin_idx].args[i]);
-		}
-
-		_set_error(vformat(RTR("Built-in function \"%s(%s)\" is only supported on high-end platforms."), String(name), arglist));
-		return false;
-	}
-
-	if (failed_builtin) {
-		String arg_list;
-		for (int i = 0; i < argcount; i++) {
-			if (i > 0) {
-				arg_list += ",";
-			}
-
-			String arg_name;
-			if (arg_types[i] == TYPE_STRUCT) {
-				arg_name = arg_names[i];
-			} else {
-				arg_name = get_datatype_name(arg_types[i]);
-			}
-			if (arg_sizes[i] > 0) {
-				arg_name += "[";
-				arg_name += itos(arg_sizes[i]);
-				arg_name += "]";
-			}
-			arg_list += arg_name;
-		}
-		_set_error(vformat(RTR("Invalid arguments for the built-in function: \"%s(%s)\"."), String(name), arg_list));
-		return false;
+	bool is_builtin = false;
+	bool is_valid_builtin = _validate_builtin_call(p_block, p_function_info, p_func, name, argcount, arg_types, arg_names, arg_sizes, r_ret_type, is_builtin);
+	if (is_builtin) {
+		return is_valid_builtin;
 	}
 
 	// try existing functions..
@@ -4183,7 +3865,7 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, const FunctionI
 			return true;
 		}
 	}
-	
+
 	// Overload failed.
 	String err_str;
 	if (overload_errors.size() == 1) {
@@ -4197,7 +3879,6 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, const FunctionI
 	}
 	_set_error(err_str);
 
-
 	if (exists) {
 		if (last_arg_count > arg_types.size()) {
 			_set_error(vformat(RTR("Too few arguments for \"%s(%s)\" call. Expected at least %d but received %d."), String(rname), arg_list, last_arg_count, arg_types.size()));
@@ -4206,6 +3887,345 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, const FunctionI
 		}
 	}
 
+	return false;
+}
+
+bool ShaderLanguage::_validate_builtin_call(
+		BlockNode *p_block,
+		const FunctionInfo &p_function_info,
+		OperatorNode *p_func,
+		const StringName &p_name,
+		const int &argcount,
+		const Vector<DataType> &p_arg_types,
+		const Vector<StringName> &arg_names,
+		const Vector<int> &arg_sizes,
+		DataType *r_ret_type,
+		bool &r_is_builtin) {
+	bool failed_builtin = false;
+	bool unsupported_builtin = false;
+	r_is_builtin = false;
+
+	if (argcount > 4) {
+		return false;
+	}
+
+	// Test builtins.
+	int idx = 0;
+	int full_match_index = 0;
+
+	while (builtin_func_defs[idx].name) {
+		BuiltinFuncDef curr_builtin = builtin_func_defs[idx];
+		r_is_builtin = false;
+		if (completion_class != curr_builtin.tag) {
+			idx++;
+			continue;
+		}
+
+		if (p_name != curr_builtin.name) {
+			idx++;
+			continue;
+		}
+		r_is_builtin = true;
+
+		bool fail = false;
+
+		for (int i = 0; i < argcount; i++) {
+			if (p_arg_types[i] != curr_builtin.args[i]) {
+				fail = true;
+				break;
+			}
+		}
+
+		if (!fail) {
+			// Full match.
+			full_match_index = idx;
+			break;
+		}
+
+		idx++;
+	}
+
+	idx = full_match_index;
+
+	while (builtin_func_defs[idx].name) {
+		BuiltinFuncDef curr_builtin = builtin_func_defs[idx];
+		r_is_builtin = false;
+		if (completion_class != curr_builtin.tag) {
+			idx++;
+			continue;
+		}
+
+		if (p_name != curr_builtin.name) {
+			idx++;
+			continue;
+		}
+		r_is_builtin = true;
+		failed_builtin = true;
+		bool fail = false;
+		for (int i = 0; i < argcount; i++) {
+			Node::Type arg_type = p_func->arguments[i + 1]->type;
+
+			if (arg_type == Node::NODE_TYPE_ARRAY) {
+				const ArrayNode *anode = static_cast<const ArrayNode *>(p_func->arguments[i + 1]);
+				if (anode->call_expression == nullptr && !anode->is_indexed()) {
+					fail = true;
+					break;
+				}
+			}
+
+			if (get_scalar_type(p_arg_types[i]) != p_arg_types[i]) {
+				if (p_arg_types[i] != builtin_func_defs[idx].args[i]) {
+					fail = true;
+					break;
+				}
+				continue;
+			}
+
+			bool converted = false;
+			switch (arg_type) {
+				case Node::NODE_TYPE_CONSTANT:
+					converted = convert_constant(static_cast<ConstantNode *>(p_func->arguments[i + 1]), builtin_func_defs[idx].args[i], nullptr, is_builtin_vec_constructor(p_name));
+					break;
+				case Node::NODE_TYPE_OPERATOR:
+					converted = convert_operator(static_cast<OperatorNode *>(p_func->arguments[i + 1]), builtin_func_defs[idx].args[i], nullptr, is_builtin_vec_constructor(p_name));
+					break;
+				default:
+					break;
+			}
+
+			if (!converted && p_arg_types[i] != builtin_func_defs[idx].args[i]) {
+				fail = true;
+				break;
+			}
+		}
+
+		if (fail) {
+			idx++;
+			continue;
+		}
+
+		if (RenderingServer::get_singleton()->is_low_end() && builtin_func_defs[idx].high_end) {
+			unsupported_builtin = true;
+			full_match_index = idx;
+			idx++;
+			continue;
+		}
+
+		if (argcount < 4 && builtin_func_defs[idx].args[argcount] != TYPE_VOID) {
+			idx++; // Make sure the number of arguments matches.
+			continue;
+		}
+
+		int constarg_idx = 0;
+		bool error = false;
+		int min, max;
+		while (builtin_func_const_args[constarg_idx].name) {
+			if (String(p_name) != builtin_func_const_args[constarg_idx].name) {
+				constarg_idx++;
+				continue;
+			}
+			int arg = builtin_func_const_args[constarg_idx].arg + 1;
+			if (p_func->arguments.size() <= arg) {
+				break;
+			}
+
+			min = builtin_func_const_args[constarg_idx].min;
+			max = builtin_func_const_args[constarg_idx].max;
+
+			Vector<Scalar> values = _get_node_values(p_block, p_function_info, p_func->arguments[arg]);
+			if (p_func->arguments[arg]->get_datatype() != TYPE_INT || values.is_empty()) {
+				error = true;
+				break;
+			}
+			if (values[0].sint < min || values[0].sint > max) {
+				error = true;
+				break;
+			}
+
+			constarg_idx++;
+		}
+		if (error) {
+			_set_error(vformat(RTR("Expected integer constant within [%d..%d] range."), min, max));
+			return false;
+		}
+
+		// Make sure it's not an out argument used in the wrong way.
+		int outarg_idx = 0;
+		while (builtin_func_out_args[outarg_idx].name) {
+			if (String(p_name) != builtin_func_out_args[outarg_idx].name) {
+				outarg_idx++;
+				continue;
+			}
+			for (int arg = 0; arg < BuiltinFuncOutArgs::MAX_ARGS; arg++) {
+				int arg_idx = builtin_func_out_args[outarg_idx].arguments[arg];
+				if (arg_idx == -1) {
+					break;
+				}
+				if (arg_idx >= argcount) {
+					break;
+				}
+				Node::Type type = p_func->arguments[arg_idx + 1]->type;
+				if (type != Node::NODE_TYPE_VARIABLE && type != Node::NODE_TYPE_MEMBER && type != Node::NODE_TYPE_ARRAY) {
+					_set_error(vformat(RTR("Argument %d of function '%s' is not a variable, array, or member."), arg_idx + 1, String(p_name)));
+					return false;
+				}
+
+				bool is_const = false;
+				switch (type) {
+					case Node::NODE_TYPE_ARRAY: {
+						ArrayNode *an = static_cast<ArrayNode *>(p_func->arguments[arg_idx + 1]);
+						is_const = an->is_const;
+						break;
+					}
+					case Node::NODE_TYPE_MEMBER: {
+						MemberNode *mn = static_cast<MemberNode *>(p_func->arguments[arg_idx + 1]);
+						is_const = mn->basetype_const;
+						break;
+					}
+					case Node::NODE_TYPE_VARIABLE: {
+						VariableNode *vn = static_cast<VariableNode *>(p_func->arguments[arg_idx + 1]);
+						if (vn->is_const) {
+							is_const = true;
+							break;
+						}
+						StringName varname = vn->name;
+						if (shader->uniforms.has(varname)) {
+							is_const = true;
+							break;
+						}
+						if (shader->varyings.has(varname)) {
+							_set_error(vformat(RTR("Varyings cannot be passed for the '%s' parameter."), "out"));
+							return false;
+						}
+						if (p_function_info.built_ins.has(varname)) {
+							BuiltInInfo info = p_function_info.built_ins[varname];
+							is_const = info.constant;
+						}
+						break;
+					}
+					default:
+						_set_error(vformat(RTR("Argument %d of function '%s' is not a variable, array, or member."), arg_idx + 1, String(p_name)));
+						return false;
+				}
+
+				if (is_const) {
+					_set_error(vformat(RTR("A constant value cannot be passed for the '%s' parameter."), "out"));
+					return false;
+				}
+
+				StringName var_name;
+				switch (type) {
+					case Node::NODE_TYPE_VARIABLE:
+						var_name = static_cast<const VariableNode *>(p_func->arguments[arg_idx + 1])->name;
+					case Node::NODE_TYPE_ARRAY:
+						var_name = static_cast<const ArrayNode *>(p_func->arguments[arg_idx + 1])->name;
+						break;
+					case Node::NODE_TYPE_MEMBER: {
+						Node *n = static_cast<const MemberNode *>(p_func->arguments[arg_idx + 1])->owner;
+						while (n->type == Node::NODE_TYPE_MEMBER) {
+							n = static_cast<const MemberNode *>(n)->owner;
+						}
+						switch (n->type) {
+							case Node::NODE_TYPE_VARIABLE:
+								var_name = static_cast<const VariableNode *>(n)->name;
+								break;
+							case Node::NODE_TYPE_ARRAY:
+								var_name = static_cast<const ArrayNode *>(n)->name;
+								break;
+							default:
+								_set_error(vformat(RTR("Argument %d of function '%s' is not a variable, array, or member."), arg_idx + 1, String(p_name)));
+								return false;
+						}
+					}
+					default:
+						break;
+				}
+
+				const BlockNode *b = p_block;
+				bool valid = false;
+				while (b) {
+					if (b->variables.has(var_name) || p_function_info.built_ins.has(var_name)) {
+						valid = true;
+						break;
+					}
+					if (b->parent_function) {
+						for (int i = 0; i < b->parent_function->arguments.size(); i++) {
+							if (b->parent_function->arguments[i].name == var_name) {
+								valid = true;
+								break;
+							}
+						}
+					}
+					b = b->parent_block;
+				}
+
+				if (!valid) {
+					_set_error(vformat(RTR("Argument %d of function '%s' can only take a local variable, array, or member."), arg_idx + 1, String(p_name)));
+					return false;
+				}
+			}
+			outarg_idx++;
+		}
+		// Implicitly convert values if possible.
+		for (int i = 0; i < argcount; i++) {
+			if (get_scalar_type(p_arg_types[i]) != p_arg_types[i] || p_arg_types[i] == builtin_func_defs[idx].args[i] || p_func->arguments[i + 1]->type != Node::NODE_TYPE_CONSTANT) {
+				// Can't do implicit conversion here.
+				continue;
+			}
+
+			// This is an implicit conversion.
+			ConstantNode *constant = static_cast<ConstantNode *>(p_func->arguments[i + 1]);
+			ConstantNode *conversion = alloc_node<ConstantNode>();
+
+			conversion->datatype = builtin_func_defs[idx].args[i];
+			conversion->values.resize(1);
+
+			convert_constant(constant, builtin_func_defs[idx].args[i], conversion->values.ptrw(), is_builtin_vec_constructor(p_name));
+			p_func->arguments.write[i + 1] = conversion;
+		}
+
+		if (r_ret_type) {
+			*r_ret_type = builtin_func_defs[idx].rettype;
+		}
+
+		return true;
+	}
+	if (unsupported_builtin) {
+		String arglist = "";
+		for (int i = 0; i < argcount; i++) {
+			if (i > 0) {
+				arglist += ", ";
+			}
+			arglist += get_datatype_name(builtin_func_defs[full_match_index].args[i]);
+		}
+
+		_set_error(vformat(RTR("Built-in function \"%s(%s)\" is only supported on high-end platforms."), String(p_name), arglist));
+		return false;
+	}
+
+	if (failed_builtin) {
+		String arg_list;
+		for (int i = 0; i < argcount; i++) {
+			if (i > 0) {
+				arg_list += ",";
+			}
+
+			String arg_name;
+			if (p_arg_types[i] == TYPE_STRUCT) {
+				arg_name = arg_names[i];
+			} else {
+				arg_name = get_datatype_name(p_arg_types[i]);
+			}
+			if (arg_sizes[i] > 0) {
+				arg_name += "[";
+				arg_name += itos(arg_sizes[i]);
+				arg_name += "]";
+			}
+			arg_list += arg_name;
+		}
+		_set_error(vformat(RTR("Invalid arguments for the built-in function: \"%s(%s)\"."), String(p_name), arg_list));
+		return false;
+	}
 	return false;
 }
 
@@ -8107,7 +8127,7 @@ ShaderLanguage::Node *ShaderLanguage::_reduce_expression(BlockNode *p_block, Sha
 		int cardinality = get_cardinality(type);
 
 		Vector<Scalar> values;
-	
+
 		for (int i = 1; i < op->arguments.size(); i++) {
 			op->arguments.write[i] = _reduce_expression(p_block, op->arguments[i]);
 			if (op->arguments[i]->type != Node::NODE_TYPE_CONSTANT) {
