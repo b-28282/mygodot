@@ -1224,6 +1224,8 @@ private:
 	bool _compare_datatypes_in_nodes(Node *a, Node *b);
 
 	bool _validate_function_call(BlockNode *p_block, const FunctionInfo &p_function_info, OperatorNode *p_func, DataType *r_ret_type, StringName *r_ret_type_str, bool *r_is_custom_function = nullptr);
+	bool _test_buiitin(int argcount, StringName &name, Vector<ShaderLanguage::DataType> &arg_types, bool &failed_builtin, ShaderLanguage::OperatorNode *p_func, bool &unsupported_builtin, int &builtin_idx, ShaderLanguage::BlockNode *p_block, const ShaderLanguage::FunctionInfo &p_function_info, ShaderLanguage::DataType *r_ret_type, bool &retFlag);
+	bool _validate_builtin_call(BlockNode *p_block, const FunctionInfo &p_function_info, OperatorNode *p_func, DataType *r_ret_type, StringName *r_ret_type_str, bool *r_is_custom_function = nullptr);
 	bool _parse_function_arguments(BlockNode *p_block, const FunctionInfo &p_function_info, OperatorNode *p_func, int *r_complete_arg = nullptr);
 	ShaderNode::Uniform::Hint _sanitize_hint(ShaderNode::Uniform::Hint p_hint);
 	bool _propagate_function_call_sampler_uniform_settings(const StringName &p_name, int p_argument, TextureFilter p_filter, TextureRepeat p_repeat, ShaderNode::Uniform::Hint p_hint);

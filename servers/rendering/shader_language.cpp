@@ -2469,7 +2469,7 @@ Vector<ShaderLanguage::Scalar> ShaderLanguage::_eval_vector_transform(const Vect
 }
 
 const ShaderLanguage::BuiltinFuncDef ShaderLanguage::builtin_func_defs[] = {
-	// Constructors.
+	// Standard constructors.
 
 	{ "bvec2", TYPE_BVEC2, { TYPE_BOOL, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
 	{ "bvec2", TYPE_BVEC2, { TYPE_BOOL, TYPE_BOOL, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
@@ -2538,6 +2538,36 @@ const ShaderLanguage::BuiltinFuncDef ShaderLanguage::builtin_func_defs[] = {
 	{ "mat2", TYPE_MAT2, { TYPE_FLOAT, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
 	{ "mat3", TYPE_MAT3, { TYPE_FLOAT, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
 	{ "mat4", TYPE_MAT4, { TYPE_FLOAT, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+
+	// Component-dropping constructors.
+
+	{ "vec2", TYPE_VEC2, { TYPE_VEC3, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec2", TYPE_VEC2, { TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec3", TYPE_VEC3, { TYPE_FLOAT, TYPE_FLOAT, TYPE_VEC2, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec3", TYPE_VEC3, { TYPE_FLOAT, TYPE_FLOAT, TYPE_VEC3, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec3", TYPE_VEC3, { TYPE_FLOAT, TYPE_FLOAT, TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec3", TYPE_VEC3, { TYPE_FLOAT, TYPE_VEC3, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec3", TYPE_VEC3, { TYPE_FLOAT, TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec3", TYPE_VEC3, { TYPE_VEC2, TYPE_VEC2, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec3", TYPE_VEC3, { TYPE_VEC2, TYPE_VEC3, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec3", TYPE_VEC3, { TYPE_VEC2, TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec3", TYPE_VEC3, { TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT, TYPE_VEC2, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT, TYPE_VEC3, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_FLOAT, TYPE_FLOAT, TYPE_FLOAT, TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_FLOAT, TYPE_FLOAT, TYPE_VEC3, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_FLOAT, TYPE_FLOAT, TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_FLOAT, TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_FLOAT, TYPE_VEC2, TYPE_VEC2, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_FLOAT, TYPE_VEC2, TYPE_VEC3, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_FLOAT, TYPE_VEC2, TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_VEC2, TYPE_FLOAT, TYPE_VEC2, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_VEC2, TYPE_FLOAT, TYPE_VEC3, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_VEC2, TYPE_FLOAT, TYPE_VEC4, TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_VEC3, TYPE_VEC2 , TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_VEC3, TYPE_VEC3 , TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+	{ "vec4", TYPE_VEC4, { TYPE_VEC3, TYPE_VEC4 , TYPE_VOID }, { "" }, TAG_GLOBAL, false },
+
 
 	// Conversion scalars.
 
@@ -3646,9 +3676,9 @@ bool ShaderLanguage::is_const_suffix_lut_initialized = false;
 bool ShaderLanguage::_validate_function_call(BlockNode *p_block, const FunctionInfo &p_function_info, OperatorNode *p_func, DataType *r_ret_type, StringName *r_ret_type_str, bool *r_is_custom_function) {
 	ERR_FAIL_COND_V(p_func->op != OP_CALL && p_func->op != OP_CONSTRUCT, false);
 
-	Vector<DataType> args;
-	Vector<StringName> args2;
-	Vector<int> args3;
+	Vector<DataType> arg_types;
+	Vector<StringName> arg_names;
+	Vector<int> arg_sizes;
 
 	ERR_FAIL_COND_V(p_func->arguments[0]->type != Node::NODE_TYPE_VARIABLE, false);
 
@@ -3656,39 +3686,40 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, const FunctionI
 	StringName rname = static_cast<VariableNode *>(p_func->arguments[0])->rname.string();
 
 	for (int i = 1; i < p_func->arguments.size(); i++) {
-		args.push_back(p_func->arguments[i]->get_datatype());
-		args2.push_back(p_func->arguments[i]->get_datatype_name());
-		args3.push_back(p_func->arguments[i]->get_array_size());
+		arg_types.push_back(p_func->arguments[i]->get_datatype());
+		arg_names.push_back(p_func->arguments[i]->get_datatype_name());
+		arg_sizes.push_back(p_func->arguments[i]->get_array_size());
 	}
 
-	int argcount = args.size();
+	int argcount = arg_types.size();
 
 	if (stages) {
 		// Stage functions can be used in custom functions as well, that why need to check them all.
 		for (const KeyValue<StringName, FunctionInfo> &E : *stages) {
-			if (E.value.stage_functions.has(name)) {
-				// Stage-based function.
-				const StageFunctionInfo &sf = E.value.stage_functions[name];
-				if (argcount != sf.arguments.size()) {
-					_set_error(vformat(RTR("Invalid number of arguments when calling stage function '%s', which expects %d argument(s)."), String(name), sf.arguments.size()));
+			if (!E.value.stage_functions.has(name)) {
+				continue;
+			}
+			// Stage-based function.
+			const StageFunctionInfo &sf = E.value.stage_functions[name];
+			if (argcount != sf.arguments.size()) {
+				_set_error(vformat(RTR("Invalid number of arguments when calling stage function '%s', which expects %d argument(s)."), String(name), sf.arguments.size()));
+				return false;
+			}
+			// Validate arguments.
+			for (int i = 0; i < argcount; i++) {
+				if (arg_types[i] != sf.arguments[i].type) {
+					_set_error(vformat(RTR("Invalid argument type when calling stage function '%s', type expected is '%s'."), String(name), get_datatype_name(sf.arguments[i].type)));
 					return false;
 				}
-				// Validate arguments.
-				for (int i = 0; i < argcount; i++) {
-					if (args[i] != sf.arguments[i].type) {
-						_set_error(vformat(RTR("Invalid argument type when calling stage function '%s', type expected is '%s'."), String(name), get_datatype_name(sf.arguments[i].type)));
-						return false;
-					}
-				}
-
-				if (r_ret_type) {
-					*r_ret_type = sf.return_type;
-				}
-				if (r_ret_type_str) {
-					*r_ret_type_str = "";
-				}
-				return true;
 			}
+
+			if (r_ret_type) {
+				*r_ret_type = sf.return_type;
+			}
+			if (r_ret_type_str) {
+				*r_ret_type_str = "";
+			}
+			return true;
 		}
 	}
 
@@ -3707,21 +3738,24 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, const FunctionI
 				continue;
 			}
 
-			if (name == builtin_func_defs[idx].name) {
-				bool fail = false;
+			if (name != builtin_func_defs[idx].name) {
+				idx++;
+				continue;
+			}
 
-				for (int i = 0; i < argcount; i++) {
-					if (args[i] != builtin_func_defs[idx].args[i]) {
-						fail = true;
-						break;
-					}
-				}
+			bool fail = false;
 
-				if (!fail) {
-					// Full match.
-					full_match_index = idx;
+			for (int i = 0; i < argcount; i++) {
+				if (arg_types[i] != builtin_func_defs[idx].args[i]) {
+					fail = true;
 					break;
 				}
+			}
+
+			if (!fail) {
+				// Full match.
+				full_match_index = idx;
+				break;
 			}
 
 			idx++;
@@ -3734,206 +3768,241 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, const FunctionI
 				continue;
 			}
 
-			if (name == builtin_func_defs[idx].name) {
-				failed_builtin = true;
-				bool fail = false;
-				for (int i = 0; i < argcount; i++) {
-					if (p_func->arguments[i + 1]->type == Node::NODE_TYPE_ARRAY) {
-						const ArrayNode *anode = static_cast<const ArrayNode *>(p_func->arguments[i + 1]);
-						if (anode->call_expression == nullptr && !anode->is_indexed()) {
-							fail = true;
-							break;
-						}
-					}
+			if (name != builtin_func_defs[idx].name) {
+				idx++;
+				continue;
+			}
 
-					bool converted = false;
-					if (get_scalar_type(args[i]) == args[i]) {
-						if (p_func->arguments[i + 1]->type == Node::NODE_TYPE_CONSTANT) {
-							if (convert_constant(static_cast<ConstantNode *>(p_func->arguments[i + 1]), builtin_func_defs[idx].args[i], nullptr, is_builtin_vec_constructor(name))) {
-								converted = true;
-							}
-						} else if (p_func->arguments[i + 1]->type == Node::NODE_TYPE_OPERATOR) {
-							if (convert_operator(static_cast<OperatorNode *>(p_func->arguments[i + 1]), builtin_func_defs[idx].args[i], nullptr, is_builtin_vec_constructor(name))) {
-								converted = true;
-							}
-						}
-					}
-					if (!converted && args[i] != builtin_func_defs[idx].args[i]) {
+			failed_builtin = true;
+			bool fail = false;
+			for (int i = 0; i < argcount; i++) {
+				Node::Type type = p_func->arguments[i + 1]->type;
+				if (type == Node::NODE_TYPE_ARRAY) {
+					const ArrayNode *anode = static_cast<const ArrayNode *>(p_func->arguments[i + 1]);
+					if (anode->call_expression == nullptr && !anode->is_indexed()) {
 						fail = true;
 						break;
 					}
 				}
 
-				if (!fail) {
-					if (RenderingServer::get_singleton()->is_low_end()) {
-						if (builtin_func_defs[idx].high_end) {
-							fail = true;
-							unsupported_builtin = true;
-							builtin_idx = idx;
-						}
+				if (get_scalar_type(arg_types[i]) != arg_types[i]) {
+					if (arg_types[i] != builtin_func_defs[idx].args[i]) {
+						fail = true;
+						break;
 					}
+					continue;
 				}
 
-				if (!fail && argcount < 4 && builtin_func_defs[idx].args[argcount] != TYPE_VOID) {
-					fail = true; // Make sure the number of arguments matches.
+				bool converted = false;
+				switch (type) {
+					case Node::NODE_TYPE_CONSTANT:
+						converted = convert_constant(static_cast<ConstantNode *>(p_func->arguments[i + 1]), builtin_func_defs[idx].args[i], nullptr, is_builtin_vec_constructor(name));
+						break;
+					case Node::NODE_TYPE_OPERATOR:
+						converted = convert_operator(static_cast<OperatorNode *>(p_func->arguments[i + 1]), builtin_func_defs[idx].args[i], nullptr, is_builtin_vec_constructor(name));
+						break;
+					default:
+						break;
 				}
 
-				if (!fail) {
-					{
-						int constarg_idx = 0;
-						while (builtin_func_const_args[constarg_idx].name) {
-							if (String(name) == builtin_func_const_args[constarg_idx].name) {
-								int arg = builtin_func_const_args[constarg_idx].arg + 1;
-								if (p_func->arguments.size() <= arg) {
-									break;
-								}
-
-								int min = builtin_func_const_args[constarg_idx].min;
-								int max = builtin_func_const_args[constarg_idx].max;
-
-								bool error = false;
-								Vector<Scalar> values = _get_node_values(p_block, p_function_info, p_func->arguments[arg]);
-								if (p_func->arguments[arg]->get_datatype() == TYPE_INT && !values.is_empty()) {
-									if (values[0].sint < min || values[0].sint > max) {
-										error = true;
-									}
-								} else {
-									error = true;
-								}
-
-								if (error) {
-									_set_error(vformat(RTR("Expected integer constant within [%d..%d] range."), min, max));
-									return false;
-								}
-							}
-							constarg_idx++;
-						}
-					}
-
-					// Make sure it's not an out argument used in the wrong way.
-					int outarg_idx = 0;
-					while (builtin_func_out_args[outarg_idx].name) {
-						if (String(name) == builtin_func_out_args[outarg_idx].name) {
-							for (int arg = 0; arg < BuiltinFuncOutArgs::MAX_ARGS; arg++) {
-								int arg_idx = builtin_func_out_args[outarg_idx].arguments[arg];
-								if (arg_idx == -1) {
-									break;
-								}
-								if (arg_idx < argcount) {
-									if (p_func->arguments[arg_idx + 1]->type != Node::NODE_TYPE_VARIABLE && p_func->arguments[arg_idx + 1]->type != Node::NODE_TYPE_MEMBER && p_func->arguments[arg_idx + 1]->type != Node::NODE_TYPE_ARRAY) {
-										_set_error(vformat(RTR("Argument %d of function '%s' is not a variable, array, or member."), arg_idx + 1, String(name)));
-										return false;
-									}
-
-									if (p_func->arguments[arg_idx + 1]->type == Node::NODE_TYPE_ARRAY) {
-										ArrayNode *mn = static_cast<ArrayNode *>(p_func->arguments[arg_idx + 1]);
-										if (mn->is_const) {
-											fail = true;
-										}
-									} else if (p_func->arguments[arg_idx + 1]->type == Node::NODE_TYPE_MEMBER) {
-										MemberNode *mn = static_cast<MemberNode *>(p_func->arguments[arg_idx + 1]);
-										if (mn->basetype_const) {
-											fail = true;
-										}
-									} else { // TYPE_VARIABLE
-										VariableNode *vn = static_cast<VariableNode *>(p_func->arguments[arg_idx + 1]);
-										if (vn->is_const) {
-											fail = true;
-										} else {
-											StringName varname = vn->name;
-											if (shader->uniforms.has(varname)) {
-												fail = true;
-											} else {
-												if (shader->varyings.has(varname)) {
-													_set_error(vformat(RTR("Varyings cannot be passed for the '%s' parameter."), "out"));
-													return false;
-												}
-												if (p_function_info.built_ins.has(varname)) {
-													BuiltInInfo info = p_function_info.built_ins[varname];
-													if (info.constant) {
-														fail = true;
-													}
-												}
-											}
-										}
-									}
-									if (fail) {
-										_set_error(vformat(RTR("A constant value cannot be passed for the '%s' parameter."), "out"));
-										return false;
-									}
-
-									StringName var_name;
-									if (p_func->arguments[arg_idx + 1]->type == Node::NODE_TYPE_ARRAY) {
-										var_name = static_cast<const ArrayNode *>(p_func->arguments[arg_idx + 1])->name;
-									} else if (p_func->arguments[arg_idx + 1]->type == Node::NODE_TYPE_MEMBER) {
-										Node *n = static_cast<const MemberNode *>(p_func->arguments[arg_idx + 1])->owner;
-										while (n->type == Node::NODE_TYPE_MEMBER) {
-											n = static_cast<const MemberNode *>(n)->owner;
-										}
-										if (n->type != Node::NODE_TYPE_VARIABLE && n->type != Node::NODE_TYPE_ARRAY) {
-											_set_error(vformat(RTR("Argument %d of function '%s' is not a variable, array, or member."), arg_idx + 1, String(name)));
-											return false;
-										}
-										if (n->type == Node::NODE_TYPE_VARIABLE) {
-											var_name = static_cast<const VariableNode *>(n)->name;
-										} else { // TYPE_ARRAY
-											var_name = static_cast<const ArrayNode *>(n)->name;
-										}
-									} else { // TYPE_VARIABLE
-										var_name = static_cast<const VariableNode *>(p_func->arguments[arg_idx + 1])->name;
-									}
-									const BlockNode *b = p_block;
-									bool valid = false;
-									while (b) {
-										if (b->variables.has(var_name) || p_function_info.built_ins.has(var_name)) {
-											valid = true;
-											break;
-										}
-										if (b->parent_function) {
-											for (int i = 0; i < b->parent_function->arguments.size(); i++) {
-												if (b->parent_function->arguments[i].name == var_name) {
-													valid = true;
-													break;
-												}
-											}
-										}
-										b = b->parent_block;
-									}
-
-									if (!valid) {
-										_set_error(vformat(RTR("Argument %d of function '%s' can only take a local variable, array, or member."), arg_idx + 1, String(name)));
-										return false;
-									}
-								}
-							}
-						}
-						outarg_idx++;
-					}
-					// Implicitly convert values if possible.
-					for (int i = 0; i < argcount; i++) {
-						if (get_scalar_type(args[i]) != args[i] || args[i] == builtin_func_defs[idx].args[i] || p_func->arguments[i + 1]->type != Node::NODE_TYPE_CONSTANT) {
-							// Can't do implicit conversion here.
-							continue;
-						}
-
-						// This is an implicit conversion.
-						ConstantNode *constant = static_cast<ConstantNode *>(p_func->arguments[i + 1]);
-						ConstantNode *conversion = alloc_node<ConstantNode>();
-
-						conversion->datatype = builtin_func_defs[idx].args[i];
-						conversion->values.resize(1);
-
-						convert_constant(constant, builtin_func_defs[idx].args[i], conversion->values.ptrw());
-						p_func->arguments.write[i + 1] = conversion;
-					}
-
-					if (r_ret_type) {
-						*r_ret_type = builtin_func_defs[idx].rettype;
-					}
-
-					return true;
+				if (!converted && arg_types[i] != builtin_func_defs[idx].args[i]) {
+					fail = true;
+					break;
 				}
 			}
+
+			if (fail) {
+				idx++;
+				continue;
+			}
+
+			if (RenderingServer::get_singleton()->is_low_end() && builtin_func_defs[idx].high_end) {
+				unsupported_builtin = true;
+				builtin_idx = idx;
+				idx++;
+				continue;
+			}
+
+			if (argcount < 4 && builtin_func_defs[idx].args[argcount] != TYPE_VOID) {
+				idx++; // Make sure the number of arguments matches.
+				continue;
+			}
+
+			
+			int constarg_idx = 0;
+			bool error = false;
+			int min, max;
+			while (builtin_func_const_args[constarg_idx].name) {
+				if (String(name) != builtin_func_const_args[constarg_idx].name) {
+					constarg_idx++;
+					continue;
+				}
+				int arg = builtin_func_const_args[constarg_idx].arg + 1;
+				if (p_func->arguments.size() <= arg) {
+					break;
+				}
+
+				min = builtin_func_const_args[constarg_idx].min;
+				max = builtin_func_const_args[constarg_idx].max;
+
+				Vector<Scalar> values = _get_node_values(p_block, p_function_info, p_func->arguments[arg]);
+				if (p_func->arguments[arg]->get_datatype() != TYPE_INT || values.is_empty()) {
+					error = true;
+					break;
+				}
+				if (values[0].sint < min || values[0].sint > max) {
+					error = true;
+					break;
+				}
+
+				constarg_idx++;
+			}
+			if (error) {
+				_set_error(vformat(RTR("Expected integer constant within [%d..%d] range."), min, max));
+				return false;
+			}
+			
+
+			// Make sure it's not an out argument used in the wrong way.
+			int outarg_idx = 0;
+			while (builtin_func_out_args[outarg_idx].name) {
+				if (String(name) != builtin_func_out_args[outarg_idx].name) {
+					outarg_idx++;
+					continue;
+				}
+				for (int arg = 0; arg < BuiltinFuncOutArgs::MAX_ARGS; arg++) {
+					int arg_idx = builtin_func_out_args[outarg_idx].arguments[arg];
+					if (arg_idx == -1) {
+						break;
+					}
+					if (arg_idx >= argcount) {
+						break;
+					}
+					Node::Type type = p_func->arguments[arg_idx + 1]->type;
+					if (type != Node::NODE_TYPE_VARIABLE && type != Node::NODE_TYPE_MEMBER && type != Node::NODE_TYPE_ARRAY) {
+						_set_error(vformat(RTR("Argument %d of function '%s' is not a variable, array, or member."), arg_idx + 1, String(name)));
+						return false;
+					}
+
+					bool is_const = false;
+					switch (type) {
+						case Node::NODE_TYPE_ARRAY: {
+							ArrayNode *an = static_cast<ArrayNode *>(p_func->arguments[arg_idx + 1]);
+							is_const = an->is_const;
+							break;
+						}
+						case Node::NODE_TYPE_MEMBER: {
+							MemberNode *mn = static_cast<MemberNode *>(p_func->arguments[arg_idx + 1]);
+							is_const = mn->basetype_const;
+							break;
+						}
+						case Node::NODE_TYPE_VARIABLE: {
+							VariableNode *vn = static_cast<VariableNode *>(p_func->arguments[arg_idx + 1]);
+							if (vn->is_const) {
+								is_const = true;
+								break;
+							}
+							StringName varname = vn->name;
+							if (shader->uniforms.has(varname)) {
+								is_const = true;
+								break;
+							}
+							if (shader->varyings.has(varname)) {
+								_set_error(vformat(RTR("Varyings cannot be passed for the '%s' parameter."), "out"));
+								return false;
+							}
+							if (p_function_info.built_ins.has(varname)) {
+								BuiltInInfo info = p_function_info.built_ins[varname];
+								is_const = info.constant;
+							}
+							break;
+						}
+						default:
+							_set_error(vformat(RTR("Argument %d of function '%s' is not a variable, array, or member."), arg_idx + 1, String(name)));
+							return false;
+					}
+
+					if (is_const) {
+						_set_error(vformat(RTR("A constant value cannot be passed for the '%s' parameter."), "out"));
+						return false;
+					}
+
+					StringName var_name;
+					switch (type) {
+						case Node::NODE_TYPE_VARIABLE:
+							var_name = static_cast<const VariableNode *>(p_func->arguments[arg_idx + 1])->name;
+						case Node::NODE_TYPE_ARRAY:
+							var_name = static_cast<const ArrayNode *>(p_func->arguments[arg_idx + 1])->name;
+							break;
+						case Node::NODE_TYPE_MEMBER: {
+							Node *n = static_cast<const MemberNode *>(p_func->arguments[arg_idx + 1])->owner;
+							while (n->type == Node::NODE_TYPE_MEMBER) {
+								n = static_cast<const MemberNode *>(n)->owner;
+							}
+							switch (n->type) {
+								case Node::NODE_TYPE_VARIABLE:
+									var_name = static_cast<const VariableNode *>(n)->name;
+									break;
+								case Node::NODE_TYPE_ARRAY:
+									var_name = static_cast<const ArrayNode *>(n)->name;
+									break;
+								default:
+									_set_error(vformat(RTR("Argument %d of function '%s' is not a variable, array, or member."), arg_idx + 1, String(name)));
+									return false;
+							}
+						}
+						default:
+							break;
+					}
+
+					const BlockNode *b = p_block;
+					bool valid = false;
+					while (b) {
+						if (b->variables.has(var_name) || p_function_info.built_ins.has(var_name)) {
+							valid = true;
+							break;
+						}
+						if (b->parent_function) {
+							for (int i = 0; i < b->parent_function->arguments.size(); i++) {
+								if (b->parent_function->arguments[i].name == var_name) {
+									valid = true;
+									break;
+								}
+							}
+						}
+						b = b->parent_block;
+					}
+
+					if (!valid) {
+						_set_error(vformat(RTR("Argument %d of function '%s' can only take a local variable, array, or member."), arg_idx + 1, String(name)));
+						return false;
+					}
+				}
+				outarg_idx++;
+			}
+			// Implicitly convert values if possible.
+			for (int i = 0; i < argcount; i++) {
+				if (get_scalar_type(arg_types[i]) != arg_types[i] || arg_types[i] == builtin_func_defs[idx].args[i] || p_func->arguments[i + 1]->type != Node::NODE_TYPE_CONSTANT) {
+					// Can't do implicit conversion here.
+					continue;
+				}
+
+				// This is an implicit conversion.
+				ConstantNode *constant = static_cast<ConstantNode *>(p_func->arguments[i + 1]);
+				ConstantNode *conversion = alloc_node<ConstantNode>();
+
+				conversion->datatype = builtin_func_defs[idx].args[i];
+				conversion->values.resize(1);
+
+				convert_constant(constant, builtin_func_defs[idx].args[i], conversion->values.ptrw(), is_builtin_vec_constructor(name));
+				p_func->arguments.write[i + 1] = conversion;
+			}
+
+			if (r_ret_type) {
+				*r_ret_type = builtin_func_defs[idx].rettype;
+			}
+
+			return true;
 
 			idx++;
 		}
@@ -3960,14 +4029,14 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, const FunctionI
 			}
 
 			String arg_name;
-			if (args[i] == TYPE_STRUCT) {
-				arg_name = args2[i];
+			if (arg_types[i] == TYPE_STRUCT) {
+				arg_name = arg_names[i];
 			} else {
-				arg_name = get_datatype_name(args[i]);
+				arg_name = get_datatype_name(arg_types[i]);
 			}
-			if (args3[i] > 0) {
+			if (arg_sizes[i] > 0) {
 				arg_name += "[";
-				arg_name += itos(args3[i]);
+				arg_name += itos(arg_sizes[i]);
 				arg_name += "]";
 			}
 			arg_list += arg_name;
@@ -4036,59 +4105,56 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, const FunctionI
 			arg_list += func_arg_name;
 		}
 
-		if (pfunc->arguments.size() != args.size()) {
+		if (pfunc->arguments.size() != arg_types.size()) {
 			last_arg_count = pfunc->arguments.size();
 			continue;
 		}
 
-		bool fail = false;
 		bool use_constant_conversion = function_overload_count[rname] == 0;
 
-		for (int j = 0; j < args.size(); j++) {
-			if (use_constant_conversion && get_scalar_type(args[j]) == args[j] && p_func->arguments[j + 1]->type == Node::NODE_TYPE_CONSTANT && args3[j] == 0 && convert_constant(static_cast<ConstantNode *>(p_func->arguments[j + 1]), pfunc->arguments[j].type)) {
-				//all good, but it needs implicit conversion later
-			} else if (args[j] != pfunc->arguments[j].type || (args[j] == TYPE_STRUCT && args2[j] != pfunc->arguments[j].struct_name) || args3[j] != pfunc->arguments[j].array_size) {
-				String func_arg_name;
-				if (pfunc->arguments[j].type == TYPE_STRUCT) {
-					func_arg_name = pfunc->arguments[j].struct_name;
-				} else {
-					func_arg_name = get_datatype_name(pfunc->arguments[j].type);
-				}
-				if (pfunc->arguments[j].array_size > 0) {
-					func_arg_name += "[";
-					func_arg_name += itos(pfunc->arguments[j].array_size);
-					func_arg_name += "]";
-				}
-				String arg_name;
-				if (args[j] == TYPE_STRUCT) {
-					arg_name = args2[j];
-				} else {
-					arg_name = get_datatype_name(args[j]);
-				}
-				if (args3[j] > 0) {
-					arg_name += "[";
-					arg_name += itos(args3[j]);
-					arg_name += "]";
-				}
-
-				fail = true;
-				OverloadErrorInfo err_info;
-				err_info.arg_list = arg_list;
-				err_info.index = j + 1;
-				err_info.func_arg_name = func_arg_name;
-				err_info.arg_name = arg_name;
-				overload_errors.push_back(err_info);
-				overload_fail = true;
-				break;
-			} else {
-				overload_fail = false;
+		for (int j = 0; j < arg_types.size(); j++) {
+			if (use_constant_conversion && get_scalar_type(arg_types[j]) == arg_types[j] && p_func->arguments[j + 1]->type == Node::NODE_TYPE_CONSTANT && arg_sizes[j] == 0 && convert_constant(static_cast<ConstantNode *>(p_func->arguments[j + 1]), pfunc->arguments[j].type)) {
+				continue; //all good, but it needs implicit conversion later
 			}
+			DataType type = pfunc->arguments[j].type;
+			String struct_name = pfunc->arguments[j].struct_name;
+			int arr_sz = pfunc->arguments[j].array_size;
+			if (arg_types[j] == type && (type != TYPE_STRUCT || arg_names[j] == struct_name) && arg_sizes[j] == arr_sz) {
+				continue;
+			}
+
+			String func_arg_name;
+			func_arg_name = type == TYPE_STRUCT ? struct_name : get_datatype_name(type);
+
+			if (arr_sz > 0) {
+				func_arg_name += "[";
+				func_arg_name += itos(arr_sz);
+				func_arg_name += "]";
+			}
+
+			String arg_name;
+			arg_name = type == TYPE_STRUCT ? String(arg_names[j]) : get_datatype_name(arg_types[j]);
+
+			if (arg_sizes[j] > 0) {
+				arg_name += "[";
+				arg_name += itos(arg_sizes[j]);
+				arg_name += "]";
+			}
+
+			OverloadErrorInfo err_info;
+			err_info.arg_list = arg_list;
+			err_info.index = j + 1;
+			err_info.func_arg_name = func_arg_name;
+			err_info.arg_name = arg_name;
+			overload_errors.push_back(err_info);
+			overload_fail = true;
+			break;
 		}
 
-		if (!fail) {
+		if (!overload_fail) {
 			//implicitly convert values if possible
-			for (int k = 0; k < args.size(); k++) {
-				if (get_scalar_type(args[k]) != args[k] || args[k] == pfunc->arguments[k].type || p_func->arguments[k + 1]->type != Node::NODE_TYPE_CONSTANT) {
+			for (int k = 0; k < arg_types.size(); k++) {
+				if (get_scalar_type(arg_types[k]) != arg_types[k] || arg_types[k] == pfunc->arguments[k].type || p_func->arguments[k + 1]->type != Node::NODE_TYPE_CONSTANT) {
 					//can't do implicit conversion here
 					continue;
 				}
@@ -4117,25 +4183,26 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, const FunctionI
 			return true;
 		}
 	}
-	if (overload_fail) {
-		String err_str;
-		if (overload_errors.size() == 1) {
-			const OverloadErrorInfo &err_info = overload_errors[0];
-			err_str = vformat("No matching function for \"%s(%s)\" call: argument %d should be %s but is %s.", String(rname), err_info.arg_list, err_info.index, err_info.func_arg_name, err_info.arg_name);
-		} else {
-			err_str = vformat(RTR("No matching function for \"%s\" call:"), String(rname));
-			for (const OverloadErrorInfo &err_info : overload_errors) {
-				err_str += "\n\t" + vformat(RTR("candidate function \"%s(%s)\" not viable, argument %d should be %s but is %s."), String(rname), err_info.arg_list, err_info.index, err_info.func_arg_name, err_info.arg_name);
-			}
+	
+	// Overload failed.
+	String err_str;
+	if (overload_errors.size() == 1) {
+		const OverloadErrorInfo &err_info = overload_errors[0];
+		err_str = vformat("No matching function for \"%s(%s)\" call: argument %d should be %s but is %s.", String(rname), err_info.arg_list, err_info.index, err_info.func_arg_name, err_info.arg_name);
+	} else {
+		err_str = vformat(RTR("No matching function for \"%s\" call:"), String(rname));
+		for (const OverloadErrorInfo &err_info : overload_errors) {
+			err_str += "\n\t" + vformat(RTR("candidate function \"%s(%s)\" not viable, argument %d should be %s but is %s."), String(rname), err_info.arg_list, err_info.index, err_info.func_arg_name, err_info.arg_name);
 		}
-		_set_error(err_str);
 	}
+	_set_error(err_str);
+
 
 	if (exists) {
-		if (last_arg_count > args.size()) {
-			_set_error(vformat(RTR("Too few arguments for \"%s(%s)\" call. Expected at least %d but received %d."), String(rname), arg_list, last_arg_count, args.size()));
-		} else if (last_arg_count < args.size()) {
-			_set_error(vformat(RTR("Too many arguments for \"%s(%s)\" call. Expected at most %d but received %d."), String(rname), arg_list, last_arg_count, args.size()));
+		if (last_arg_count > arg_types.size()) {
+			_set_error(vformat(RTR("Too few arguments for \"%s(%s)\" call. Expected at least %d but received %d."), String(rname), arg_list, last_arg_count, arg_types.size()));
+		} else if (last_arg_count < arg_types.size()) {
+			_set_error(vformat(RTR("Too many arguments for \"%s(%s)\" call. Expected at most %d but received %d."), String(rname), arg_list, last_arg_count, arg_types.size()));
 		}
 	}
 
@@ -8040,26 +8107,25 @@ ShaderLanguage::Node *ShaderLanguage::_reduce_expression(BlockNode *p_block, Sha
 		int cardinality = get_cardinality(type);
 
 		Vector<Scalar> values;
-
+	
 		for (int i = 1; i < op->arguments.size(); i++) {
 			op->arguments.write[i] = _reduce_expression(p_block, op->arguments[i]);
-			if (op->arguments[i]->type == Node::NODE_TYPE_CONSTANT) {
-				ConstantNode *cn = static_cast<ConstantNode *>(op->arguments[i]);
+			if (op->arguments[i]->type != Node::NODE_TYPE_CONSTANT) {
+				return p_node;
+			}
 
-				if (get_scalar_type(cn->datatype) == base) {
-					for (int j = 0; j < cn->values.size(); j++) {
-						values.push_back(cn->values[j]);
-					}
-				} else if (get_scalar_type(cn->datatype) == cn->datatype) {
-					Scalar v;
-					if (!convert_constant(cn, base, &v)) {
-						return p_node;
-					}
-					values.push_back(v);
-				} else {
+			ConstantNode *cn = static_cast<ConstantNode *>(op->arguments[i]);
+
+			if (get_scalar_type(cn->datatype) == base) {
+				for (int j = 0; j < cn->values.size(); j++) {
+					values.push_back(cn->values[j]);
+				}
+			} else if (get_scalar_type(cn->datatype) == cn->datatype) {
+				Scalar v;
+				if (!convert_constant(cn, base, &v)) {
 					return p_node;
 				}
-
+				values.push_back(v);
 			} else {
 				return p_node;
 			}
@@ -8084,11 +8150,12 @@ ShaderLanguage::Node *ShaderLanguage::_reduce_expression(BlockNode *p_block, Sha
 					values.push_back(value);
 				}
 			}
-		} else if (values.size() != cardinality) {
+		} else if (values.size() < cardinality) {
 			ERR_PRINT("Failed to reduce expression, values and cardinality mismatch.");
 			return p_node;
 		}
 
+		values.resize(cardinality);
 		ConstantNode *cn = alloc_node<ConstantNode>();
 		cn->datatype = op->get_datatype();
 		cn->values = values;
