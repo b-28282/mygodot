@@ -607,7 +607,10 @@ void LocalizationEditor::drop_data_fw(const Point2 &p_point, const Variant &p_da
 	if (!item) {
 		return;
 	}
-	int section = MAX(tree->get_drop_section_at_position(p_point), 0);
+	Tree::DropSection section = tree->get_drop_section_at_position(p_point);
+	if (section == Tree::DROP_SECTION_NOT_FOUND || section == Tree::DROP_SECTION_ABOVE){
+		section = Tree::DROP_SECTION_ON;
+	}
 	Dictionary drop_data = p_data;
 
 	TreeItem *from = Object::cast_to<TreeItem>(drop_data["item"]);
@@ -622,7 +625,12 @@ void LocalizationEditor::drop_data_fw(const Point2 &p_point, const Variant &p_da
 	const String path = setting_value[index_from];
 
 	int target_index = item->get_metadata(0);
-	target_index = MAX(target_index + section, 0);
+	if (section == Tree::DROP_SECTION_BELOW){
+		target_index += 1;
+	} else if (section == Tree::DROP_SECTION_FIRST){
+		target_index += 2;
+	}
+	target_index = MAX(target_index, 0);
 	if (target_index > index_from) {
 		target_index -= 1; // Account for item being removed.
 	}

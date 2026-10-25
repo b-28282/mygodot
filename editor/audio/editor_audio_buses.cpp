@@ -799,12 +799,20 @@ bool EditorAudioBus::can_drop_data_fw(const Point2 &p_point, const Variant &p_da
 
 void EditorAudioBus::drop_data_fw(const Point2 &p_point, const Variant &p_data, Control *p_from) {
 	Dictionary d = p_data;
+	bool invalid_point = p_point == Vector2(Math::INF, Math::INF);
 
-	TreeItem *item = (p_point == Vector2(Math::INF, Math::INF)) ? effects->get_selected() : effects->get_item_at_position(p_point);
+	TreeItem *item = (invalid_point) ? effects->get_selected() : effects->get_item_at_position(p_point);
 	if (!item) {
 		return;
 	}
-	int pos = (p_point == Vector2(Math::INF, Math::INF)) ? effects->get_drop_section_at_position(effects->get_item_rect(item).position) : effects->get_drop_section_at_position(p_point);
+
+	Tree::DropSection pos;
+	if (invalid_point) {
+		pos = effects->get_drop_section_at_position(effects->get_item_rect(item).position);
+	} else {
+	 	pos = effects->get_drop_section_at_position(p_point);
+	}
+	
 	Variant md = item->get_metadata(0);
 
 	int paste_at;
@@ -813,7 +821,7 @@ void EditorAudioBus::drop_data_fw(const Point2 &p_point, const Variant &p_data, 
 
 	if (md.get_type() == Variant::INT) {
 		paste_at = md;
-		if (pos > 0) {
+		if (pos == Tree::DROP_SECTION_ON || pos == Tree::DROP_SECTION_BELOW || pos == Tree::DROP_SECTION_FIRST) {
 			paste_at++;
 		}
 

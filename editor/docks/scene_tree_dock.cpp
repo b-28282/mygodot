@@ -3840,11 +3840,11 @@ static bool _is_node_visible(Node *p_node) {
 	return true;
 }
 
-void SceneTreeDock::_normalize_drop(Node *&to_node, int &to_pos, int p_type) {
+void SceneTreeDock::_normalize_drop(Node *&to_node, int &to_pos, Tree::DropSection p_type) {
 	// Drop as last child, by default.
 	to_pos = -1;
 
-	if (p_type == -1) {
+	if (p_type == Tree::DROP_SECTION_ABOVE) {
 		// Drop as sibling, above.
 		if (to_node == EditorNode::get_singleton()->get_edited_scene()) {
 			to_node = nullptr;
@@ -3853,7 +3853,7 @@ void SceneTreeDock::_normalize_drop(Node *&to_node, int &to_pos, int p_type) {
 
 		to_pos = to_node->get_index(false);
 		to_node = to_node->get_parent();
-	} else if (p_type == 1) {
+	} else if (p_type == Tree::DROP_SECTION_BELOW) {
 		// Drop as child of root node if out of bounds.
 		if (to_node == EditorNode::get_singleton()->get_edited_scene()) {
 			to_pos = -1;
@@ -3876,7 +3876,7 @@ void SceneTreeDock::_normalize_drop(Node *&to_node, int &to_pos, int p_type) {
 		}
 
 		to_node = to_node->get_parent();
-	} else if (p_type == 2) {
+	} else if (p_type == Tree::DROP_SECTION_FIRST) {
 		// Drop as first visible child, among others.
 		to_pos = 0;
 		int sibling_count = to_node->get_child_count();
@@ -3886,7 +3886,7 @@ void SceneTreeDock::_normalize_drop(Node *&to_node, int &to_pos, int p_type) {
 	}
 }
 
-void SceneTreeDock::_files_dropped(const Vector<String> &p_files, Node *p_to_node, int p_type) {
+void SceneTreeDock::_files_dropped(const Vector<String> &p_files, Node *p_to_node, Tree::DropSection p_type) {
 	ERR_FAIL_NULL(p_to_node);
 	ERR_FAIL_COND(p_files.is_empty());
 
@@ -3895,7 +3895,7 @@ void SceneTreeDock::_files_dropped(const Vector<String> &p_files, Node *p_to_nod
 	const bool is_dropping_scene = ClassDB::is_parent_class(res_type, "PackedScene");
 
 	// Dropping as property.
-	if (p_type == 0 && p_files.size() == 1 && !is_dropping_scene) {
+	if (p_type == Tree::DROP_SECTION_ON && p_files.size() == 1 && !is_dropping_scene) {
 		List<String> valid_properties;
 
 		List<PropertyInfo> pinfo;
@@ -4015,7 +4015,7 @@ void SceneTreeDock::_script_dropped(const String &p_file, Node *p_to_node) {
 	}
 }
 
-void SceneTreeDock::_nodes_dragged(const Array &p_nodes, Node *p_to_node, int p_type) {
+void SceneTreeDock::_nodes_dragged(const Array &p_nodes, Node *p_to_node, Tree::DropSection p_type) {
 	if (!p_to_node) {
 		return;
 	}

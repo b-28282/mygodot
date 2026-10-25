@@ -640,7 +640,7 @@ void FileSystemDock::_notification(int p_what) {
 		} break;
 
 		case NOTIFICATION_DRAG_END: {
-			tree->set_drop_mode_flags(0);
+			tree->set_drop_mode_flags(Tree::DROP_MODE_DISABLED);
 
 			if (holding_branch) {
 				holding_branch = false;
@@ -3164,15 +3164,21 @@ bool FileSystemDock::can_drop_data_fw(const Point2 &p_point, const Variant &p_da
 			return false;
 		}
 
-		int drop_section = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_drop_section_at_position(tree->get_item_rect(ti).position) : tree->get_drop_section_at_position(p_point);
+		Tree::DropSection drop_section;
+		if (p_point == Vector2(Math::INF, Math::INF)){
+			drop_section = tree->get_drop_section_at_position(tree->get_item_rect(ti).position);
+		} else {
+			drop_section = tree->get_drop_section_at_position(p_point);
+		}
+		
 		if (ti == favorites_item) {
-			return (drop_section == 1); // The parent, first fav.
+			return (drop_section == Tree::DROP_SECTION_BELOW); // The parent, first fav.
 		}
 		if (ti->get_parent() && favorites_item == ti->get_parent()) {
 			return true; // A favorite
 		}
 		if (ti == resources_item) {
-			return (drop_section == -1); // The tree, last fav.
+			return (drop_section == Tree::DROP_SECTION_ABOVE); // The tree, last fav.
 		}
 
 		return false;
@@ -3236,12 +3242,19 @@ void FileSystemDock::drop_data_fw(const Point2 &p_point, const Variant &p_data, 
 		if (String(drag_data["favorite"]) != "all") {
 			return;
 		}
+		bool invalid_point = p_point == Vector2(Math::INF, Math::INF);
 		// Moving favorite around.
-		TreeItem *ti = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_selected() : tree->get_item_at_position(p_point);
+		TreeItem *ti = (invalid_point) ? tree->get_selected() : tree->get_item_at_position(p_point);
 		if (!ti) {
 			return;
 		}
-		int drop_section = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_drop_section_at_position(tree->get_item_rect(ti).position) : tree->get_drop_section_at_position(p_point);
+
+		Tree::DropSection drop_section;
+		if (invalid_point){
+			drop_section = tree->get_drop_section_at_position(tree->get_item_rect(ti).position);
+		} else {
+			drop_section = tree->get_drop_section_at_position(p_point);
+		}
 
 		int drop_position;
 		Vector<String> drag_files = drag_data["files"];
@@ -3254,7 +3267,7 @@ void FileSystemDock::drop_data_fw(const Point2 &p_point, const Variant &p_data, 
 		} else {
 			// Drop in the list.
 			drop_position = dirs.find(ti->get_metadata(0));
-			if (drop_section == 1) {
+			if (drop_section == Tree::DROP_SECTION_BELOW) {
 				drop_position++;
 			}
 		}
@@ -3370,10 +3383,11 @@ void FileSystemDock::drop_data_fw(const Point2 &p_point, const Variant &p_data, 
 void FileSystemDock::_get_drag_target_folder(String &target, bool &target_favorites, const Point2 &p_point, Control *p_from) const {
 	target = String();
 	target_favorites = false;
+	bool invalid_point = p_point == Vector2(Math::INF, Math::INF);
 
 	// In the file list.
 	if (p_from == files) {
-		int pos = (p_point == Vector2(Math::INF, Math::INF)) ? -1 : files->get_item_at_position(p_point, true);
+		int pos = (invalid_point) ? -1 : files->get_item_at_position(p_point, true);
 		if (pos == -1) {
 			target = get_current_directory();
 			return;
@@ -3386,12 +3400,16 @@ void FileSystemDock::_get_drag_target_folder(String &target, bool &target_favori
 
 	// In the tree.
 	if (p_from == tree) {
-		TreeItem *ti = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_selected() : tree->get_item_at_position(p_point);
+		TreeItem *ti = (invalid_point) ? tree->get_selected() : tree->get_item_at_position(p_point);
 		if (ti) {
-			int section = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_drop_section_at_position(tree->get_item_rect(ti).position) : tree->get_drop_section_at_position(p_point);
-
+			Tree::DropSection section;
+			if (invalid_point){
+				section = tree->get_drop_section_at_position(tree->get_item_rect(ti).position);
+			} else {
+				section = tree->get_drop_section_at_position(p_point);
+			}
 			// Check the favorites first.
-			if (ti == tree->get_root()->get_first_child() && section >= 0) {
+			if (ti == tree->get_root()->get_first_child() && section >= Tree::DROP_SECTION_ON) {
 				target_favorites = true;
 				return;
 			} else if (ti->get_parent() == tree->get_root()->get_first_child()) {
@@ -3399,7 +3417,7 @@ void FileSystemDock::_get_drag_target_folder(String &target, bool &target_favori
 				return;
 			} else {
 				String fpath = ti->get_metadata(0);
-				if (section == 0 || section == 2) {
+				if (section == Tree::DROP_SECTION_ON || section == Tree::DROP_SECTION_FIRST) {
 					if (fpath.ends_with("/")) {
 						// We drop on a folder.
 						target = fpath;

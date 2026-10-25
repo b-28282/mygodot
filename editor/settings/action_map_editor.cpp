@@ -323,7 +323,13 @@ void ActionMapEditor::drop_data_fw(const Point2 &p_point, const Variant &p_data,
 		return;
 	}
 
-	bool drop_above = ((p_point == Vector2(Math::INF, Math::INF)) ? action_tree->get_drop_section_at_position(action_tree->get_item_rect(target).position) : action_tree->get_drop_section_at_position(p_point)) == -1;
+	Tree::DropSection drop_section;
+	if (p_point == Vector2(Math::INF, Math::INF)){
+		drop_section = action_tree->get_drop_section_at_position(action_tree->get_item_rect(target).position);
+	} else {
+		drop_section = action_tree->get_drop_section_at_position(p_point);
+	}
+	bool drop_above = drop_section == Tree::DROP_SECTION_ABOVE;
 
 	Dictionary d = p_data;
 	if (d["input_type"] == "action") {

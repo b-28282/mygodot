@@ -1012,21 +1012,22 @@ void ProjectExportDialog::drop_data_fw(const Point2 &p_point, const Variant &p_d
 	} else if (p_from == patches) {
 		Dictionary d = p_data;
 		int from_pos = d["patch"];
+		bool invalid_point = p_point == Vector2(Math::INF, Math::INF);
 
-		TreeItem *item = (p_point == Vector2(Math::INF, Math::INF)) ? patches->get_selected() : patches->get_item_at_position(p_point);
+		TreeItem *item = (invalid_point) ? patches->get_selected() : patches->get_item_at_position(p_point);
 		if (!item) {
 			return;
 		}
 
 		int to_pos = item->get_metadata(0);
 
-		int pos = -1;
-		if (p_point == Vector2(Math::INF, Math::INF)) {
+		Tree::DropSection pos = Tree::DROP_SECTION_ABOVE;
+		if (invalid_point) {
 			pos = patches->get_drop_section_at_position(patches->get_item_rect(item).position);
 		} else {
 			pos = patches->get_drop_section_at_position(p_point);
 		}
-		if (pos > 0) {
+		if (pos == Tree::DROP_SECTION_ON || pos == Tree::DROP_SECTION_BELOW || pos == Tree::DROP_SECTION_FIRST) {
 			to_pos++;
 		}
 

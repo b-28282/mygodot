@@ -483,6 +483,14 @@ public:
 		DROP_MODE_ON_ITEM = 1,
 		DROP_MODE_INBETWEEN = 2
 	};
+	
+	enum DropSection {
+		DROP_SECTION_NOT_FOUND = -100,
+		DROP_SECTION_ABOVE = -1,
+		DROP_SECTION_ON = 0,
+		DROP_SECTION_BELOW = 1,
+		DROP_SECTION_FIRST = 2
+	};
 
 	enum ScrollHintMode {
 		SCROLL_HINT_MODE_DISABLED,
@@ -504,7 +512,7 @@ private:
 	int popup_pressing_edited_item_column = -1;
 
 	TreeItem *drop_mode_over = nullptr;
-	int drop_mode_section = 0;
+	DropSection drop_mode_section = DROP_SECTION_ON;
 	bool drop_mode_unchanged = false;
 	bool dragging_within_self = false;
 
@@ -539,8 +547,7 @@ private:
 
 	int blocked = 0;
 
-	int drop_mode_flags = 0;
-	static constexpr int COLUMN_NOT_FOUND = -100;
+	BitField<DropModeFlags> drop_mode_flags = DROP_MODE_DISABLED;
 
 	struct ColumnInfo {
 		mutable RID accessibility_col_element;
@@ -768,9 +775,9 @@ private:
 
 	TreeItem *_search_item_text(TreeItem *p_at, const String &p_find, int *r_col, bool p_selectable, bool p_backwards = false);
 
-	TreeItem *_find_item_at_pos(TreeItem *p_item, const Point2 &p_pos, int &r_column, int &r_height, int &r_section, bool p_sticky_check = true) const;
+	TreeItem *_find_item_at_pos(TreeItem *p_item, const Point2 &p_pos, int &r_column, int &r_height, DropSection &r_section, bool p_sticky_check = true) const;
 
-	void _find_button_at_pos(const Point2 &p_pos, TreeItem *&r_item, int &r_column, int &r_index, int &r_section) const;
+	void _find_button_at_pos(const Point2 &p_pos, TreeItem *&r_item, int &r_column, int &r_index, DropSection &r_section) const;
 
 	struct FindColumnButtonResult {
 		int column_index = -1;
@@ -874,7 +881,7 @@ public:
 	virtual Variant get_drag_data(const Point2 &p_point) override;
 	TreeItem *get_item_at_position(const Point2 &p_pos) const;
 	int get_column_at_position(const Point2 &p_pos) const;
-	int get_drop_section_at_position(const Point2 &p_pos) const;
+	DropSection get_drop_section_at_position(const Point2 &p_pos) const;
 	int get_button_id_at_position(const Point2 &p_pos) const;
 
 	void clear();
@@ -974,8 +981,8 @@ public:
 	void set_enable_drag_unfolding(bool p_enable);
 	bool is_drag_unfolding_enabled() const;
 
-	void set_drop_mode_flags(int p_flags);
-	int get_drop_mode_flags() const;
+	void set_drop_mode_flags(BitField<DropModeFlags> p_flags);
+	BitField<DropModeFlags> get_drop_mode_flags() const;
 
 	void set_edit_checkbox_cell_only_when_checkbox_is_pressed(bool p_enable);
 	bool get_edit_checkbox_cell_only_when_checkbox_is_pressed() const;
@@ -998,6 +1005,7 @@ public:
 	~Tree();
 };
 
+VARIANT_BITFIELD_CAST(Tree::DropModeFlags);
 VARIANT_ENUM_CAST(Tree::SelectMode);
-VARIANT_ENUM_CAST(Tree::DropModeFlags);
+VARIANT_ENUM_CAST(Tree::DropSection);
 VARIANT_ENUM_CAST(Tree::ScrollHintMode);

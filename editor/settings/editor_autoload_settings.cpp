@@ -660,15 +660,21 @@ bool EditorAutoloadSettings::can_drop_data_fw(const Point2 &p_point, const Varia
 	}
 
 	if (drop_data.has("type")) {
-		TreeItem *ti = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_selected() : tree->get_item_at_position(p_point);
+		bool invalid_point = p_point == Vector2(Math::INF, Math::INF);
+		TreeItem *ti = (invalid_point) ? tree->get_selected() : tree->get_item_at_position(p_point);
 
 		if (!ti) {
 			return false;
 		}
 
-		int section = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_drop_section_at_position(tree->get_item_rect(ti).position) : tree->get_drop_section_at_position(p_point);
+		Tree::DropSection section;
+		if (invalid_point){
+			section = tree->get_drop_section_at_position(tree->get_item_rect(ti).position);
+		} else {
+			section = tree->get_drop_section_at_position(p_point);
+		}
 
-		return section >= -1;
+		return section != Tree::DROP_SECTION_NOT_FOUND;
 	}
 
 	return false;
@@ -681,16 +687,16 @@ void EditorAutoloadSettings::drop_data_fw(const Point2 &p_point, const Variant &
 		return;
 	}
 
-	int section = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_drop_section_at_position(tree->get_item_rect(ti).position) : tree->get_drop_section_at_position(p_point);
+	Tree::DropSection section = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_drop_section_at_position(tree->get_item_rect(ti).position) : tree->get_drop_section_at_position(p_point);
 
-	if (section < -1) {
+	if (section == Tree::DROP_SECTION_NOT_FOUND) {
 		return;
 	}
 
 	String name;
 	bool move_to_back = false;
 
-	if (section < 0) {
+	if (section == Tree::DROP_SECTION_ABOVE) {
 		name = ti->get_text(0);
 	} else if (ti->get_next()) {
 		name = ti->get_next()->get_text(0);

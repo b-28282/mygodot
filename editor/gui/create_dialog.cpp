@@ -888,7 +888,12 @@ void CreateDialog::drop_data_fw(const Point2 &p_point, const Variant &p_data, Co
 	}
 
 	String drop_at = ti->get_text(0);
-	int ds = (p_point == Vector2(Math::INF, Math::INF)) ? favorites->get_drop_section_at_position(favorites->get_item_rect(ti).position) : favorites->get_drop_section_at_position(p_point);
+	Tree::DropSection ds;
+	if (p_point == Vector2(Math::INF, Math::INF)){
+		ds = favorites->get_drop_section_at_position(favorites->get_item_rect(ti).position);
+	} else {
+		ds = favorites->get_drop_section_at_position(p_point);
+	}
 
 	int drop_idx = favorite_list.find(drop_at);
 	if (drop_idx < 0) {
@@ -903,14 +908,14 @@ void CreateDialog::drop_data_fw(const Point2 &p_point, const Variant &p_data, Co
 	}
 
 	if (drop_idx == from_idx) {
-		ds = -1; //cause it will be gone
+		ds = Tree::DROP_SECTION_ABOVE; //cause it will be gone
 	} else if (drop_idx > from_idx) {
 		drop_idx--;
 	}
 
 	favorite_list.remove_at(from_idx);
 
-	if (ds < 0) {
+	if (ds == Tree::DROP_SECTION_ABOVE || ds == Tree::DROP_SECTION_NOT_FOUND) {
 		favorite_list.insert(drop_idx, type);
 	} else {
 		if (drop_idx >= favorite_list.size() - 1) {

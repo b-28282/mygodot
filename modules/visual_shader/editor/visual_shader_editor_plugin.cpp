@@ -6184,7 +6184,7 @@ void VisualShaderEditor::_notification(int p_what) {
 		} break;
 
 		case NOTIFICATION_DRAG_END: {
-			members->set_drop_mode_flags(0);
+			members->set_drop_mode_flags(Tree::DROP_MODE_DISABLED);
 		} break;
 	}
 }

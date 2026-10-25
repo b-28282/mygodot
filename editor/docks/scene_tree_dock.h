@@ -288,10 +288,10 @@ class SceneTreeDock : public EditorDock {
 	void _fill_path_renames(Vector<StringName> base_path, Vector<StringName> new_base_path, Node *p_node, HashMap<Node *, NodePath> *p_renames);
 	bool _has_tracks_to_delete(Node *p_node, List<Node *> &p_to_delete) const;
 
-	void _normalize_drop(Node *&to_node, int &to_pos, int p_type);
+	void _normalize_drop(Node *&to_node, int &to_pos, Tree::DropSection p_type);
 
-	void _nodes_dragged(const Array &p_nodes, Node *p_to_node, int p_type);
-	void _files_dropped(const Vector<String> &p_files, Node *p_to_node, int p_type);
+	void _nodes_dragged(const Array &p_nodes, Node *p_to_node, Tree::DropSection p_type);
+	void _files_dropped(const Vector<String> &p_files, Node *p_to_node, Tree::DropSection p_type);
 	void _script_dropped(const String &p_file, Node *p_to_node);
 	void _quick_open(const String &p_file_path);
 

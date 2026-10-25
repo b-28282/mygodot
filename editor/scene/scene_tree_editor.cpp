@@ -2051,8 +2051,20 @@ Node *SceneTreeEditor::_get_node(const NodePath &p_path) const {
 }
 
 bool SceneTreeEditor::_has_drop_selection(TreeItem *p_item, const Point2 &p_point) const {
-	int section = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_drop_section_at_position(tree->get_item_rect(p_item).position) : tree->get_drop_section_at_position(p_point);
-	return !(section < -1 || (section == -1 && !p_item->get_parent()));
+	Tree::DropSection section;
+	if (p_point == Vector2(Math::INF, Math::INF)){
+		section = tree->get_drop_section_at_position(tree->get_item_rect(p_item).position);
+	} else {
+		section = tree->get_drop_section_at_position(p_point);
+	}
+	
+	if(section == Tree::DROP_SECTION_NOT_FOUND){
+		return false;
+	} else if (section == Tree::DROP_SECTION_ABOVE && !p_item->get_parent()){
+		return false;
+	} else {
+		return true;
+	}
 }
 
 bool SceneTreeEditor::can_drop_data_fw(const Point2 &p_point, const Variant &p_data, Control *p_from) const {
@@ -2153,12 +2165,21 @@ void SceneTreeEditor::drop_data_fw(const Point2 &p_point, const Variant &p_data,
 		return;
 	}
 
-	TreeItem *item = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_selected() : tree->get_item_at_position(p_point);
+	bool invalid_point = p_point == Vector2(Math::INF, Math::INF);
+
+	TreeItem *item = invalid_point ? tree->get_selected() : tree->get_item_at_position(p_point);
 	if (!item) {
 		return;
 	}
-	int section = (p_point == Vector2(Math::INF, Math::INF)) ? tree->get_drop_section_at_position(tree->get_item_rect(item).position) : tree->get_drop_section_at_position(p_point);
-	if (section < -1) {
+
+	Tree::DropSection section;
+	if (invalid_point){
+		section = tree->get_drop_section_at_position(tree->get_item_rect(item).position);
+	} else {
+		section = tree->get_drop_section_at_position(p_point);
+	}
+
+	if (section == Tree::DROP_SECTION_NOT_FOUND) {
 		return;
 	}
 

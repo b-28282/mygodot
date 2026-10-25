@@ -2843,7 +2843,7 @@ int Tree::draw_item(const Point2i &p_pos, const Point2 &p_draw_ofs, const Size2 
 				int parent_ofs = p_pos.x + ((p_item->disable_folding || hide_folding) ? theme_cache.h_separation : theme_cache.item_margin - theme_cache.arrow->get_width() * 0.5);
 				Point2i parent_pos = Point2i(parent_ofs, p_pos.y + label_h * 0.5 + theme_cache.arrow->get_height() * 0.5) - theme_cache.offset + p_draw_ofs;
 
-				bool drop_showing_arrow_on_c = (drop_mode_over == c && drop_mode_section == 0 && !c->first_child && !hide_folding);
+				bool drop_showing_arrow_on_c = (drop_mode_over == c && drop_mode_section == DROP_SECTION_ON && !c->first_child && !hide_folding);
 				int root_ofs = children_pos.x + ((c->disable_folding || hide_folding) ? theme_cache.h_separation : theme_cache.item_margin - (c->get_visible_child_count() > 0 || drop_showing_arrow_on_c ? theme_cache.arrow->get_width() : 0));
 				root_ofs = MIN(root_ofs, get_column_width(0) + p_draw_ofs.x);
 				Point2i root_pos = Point2i(root_ofs, children_pos.y + child_self_height * 0.5) - theme_cache.offset + p_draw_ofs;
@@ -4332,7 +4332,8 @@ void Tree::gui_input(const Ref<InputEvent> &p_event) {
 
 				// Only emit the event if the click is still within the button rect.
 				TreeItem *current_item;
-				int current_column, current_index, current_section;
+				int current_column, current_index;
+				DropSection current_section;
 				_find_button_at_pos(mb->get_position(), current_item, current_column, current_index, current_section);
 				if (current_item == cache.click_item && current_column == cache.click_column && current_index == cache.click_index) {
 					emit_signal("button_clicked", cache.click_item, cache.click_column, cache.click_id, mb->get_button_index());
@@ -4540,12 +4541,13 @@ void Tree::_determine_hovered_item() {
 	// Determine hover on rows and items.
 	if (root && is_mouse_hovering && hovered_pos.y >= 0) {
 		TreeItem *it;
-		int col, section, col_button_index;
+		int col, col_button_index;
+		DropSection section;
 		_find_button_at_pos(hovered_pos, it, col, col_button_index, section);
 
 		if (drop_mode_flags) {
 			if (it != drop_mode_over) {
-				drop_mode_over = (section != COLUMN_NOT_FOUND) ? it : nullptr;
+				drop_mode_over = (section != DROP_SECTION_NOT_FOUND) ? it : nullptr;
 
 				// Check if the drop target is a descendant of any selected item.
 				if (drop_mode_over && dragging_within_self) {
@@ -4565,7 +4567,7 @@ void Tree::_determine_hovered_item() {
 				queue_redraw();
 			}
 
-			if (it && section != COLUMN_NOT_FOUND && section != drop_mode_section) {
+			if (it && section != DROP_SECTION_NOT_FOUND && section != drop_mode_section) {
 				drop_mode_section = section;
 				queue_redraw();
 			}
@@ -4579,13 +4581,13 @@ void Tree::_determine_hovered_item() {
 					TreeItem *parent = selected_item->get_parent();
 					if (drop_mode_over == child) {
 						drop_mode_unchanged = true;
-					} else if (drop_mode_section == -1 && drop_mode_over->get_prev() == child && parent == drop_mode_over->get_parent()) {
+					} else if (drop_mode_section == DROP_SECTION_ABOVE && drop_mode_over->get_prev() == child && parent == drop_mode_over->get_parent()) {
 						drop_mode_unchanged = true;
-					} else if (drop_mode_section == 1 && drop_mode_over->get_next() == child && parent == drop_mode_over->get_parent()) {
+					} else if (drop_mode_section == DROP_SECTION_BELOW && drop_mode_over->get_next() == child && parent == drop_mode_over->get_parent()) {
 						drop_mode_unchanged = true;
-					} else if (drop_mode_section == 0 && drop_mode_over == parent && child == parent->get_last_child()) {
+					} else if (drop_mode_section == DROP_SECTION_ON && drop_mode_over == parent && child == parent->get_last_child()) {
 						drop_mode_unchanged = true;
-					} else if (drop_mode_section == 2 && drop_mode_over == parent && child == parent->get_first_child()) {
+					} else if (drop_mode_section == DROP_SECTION_FIRST && drop_mode_over == parent && child == parent->get_first_child()) {
 						drop_mode_unchanged = true;
 					}
 				}
@@ -4633,7 +4635,7 @@ void Tree::_determine_hovered_item() {
 }
 
 void Tree::_on_dropping_unfold_timer_timeout() {
-	if (enable_drag_unfolding && drop_mode_over && (drop_mode_section == 0 || drop_mode_section == 2)) {
+	if (enable_drag_unfolding && drop_mode_over && (drop_mode_section == DROP_SECTION_ON || drop_mode_section == DROP_SECTION_FIRST)) {
 		drop_mode_over->set_collapsed(false);
 	}
 }
@@ -5288,7 +5290,7 @@ void Tree::_notification(int p_what) {
 		} break;
 
 		case NOTIFICATION_DRAG_END: {
-			drop_mode_flags = 0;
+			drop_mode_flags = DROP_MODE_DISABLED;
 			dragging_within_self = false;
 			_reset_drop_mode_over();
 			scrolling = false;
@@ -5555,7 +5557,7 @@ void Tree::_notification(int p_what) {
 						}
 
 						// Total height includes item height for drop below section.
-						int total_height = (drop_mode_section == 1) ? r.size.y + descendants_height : 0;
+						int total_height = (drop_mode_section == DROP_SECTION_BELOW) ? r.size.y + descendants_height : 0;
 
 						// Calculate total width across all columns.
 						float total_columns_width = 0;
@@ -5564,7 +5566,7 @@ void Tree::_notification(int p_what) {
 						}
 						float line_end_x = total_columns_width - theme_cache.offset.x + draw_ofs.x;
 
-						if (drop_mode_section == 0 || drop_mode_section == 2) {
+						if (drop_mode_section == DROP_SECTION_ON || drop_mode_section == DROP_SECTION_FIRST) {
 							// Drop on item as last child (section 0) or as first child (section 2).
 							Ref<Texture2D> arrow = theme_cache.arrow;
 							Size2 arrow_full_size = arrow->get_size();
@@ -5574,7 +5576,7 @@ void Tree::_notification(int p_what) {
 
 							// Section 0 with visible children: use descendants_height to insert as last child.
 							// Section 2: child_height stays 0 to insert as first child.
-							float child_height = (drop_mode_section == 0 && drop_mode_over->first_child && !drop_mode_over->is_collapsed()) ? descendants_height : 0;
+							float child_height = (drop_mode_section == DROP_SECTION_ON && drop_mode_over->first_child && !drop_mode_over->is_collapsed()) ? descendants_height : 0;
 
 							float horizontal_y = r.position.y + r.size.y + child_height;
 
@@ -5582,7 +5584,7 @@ void Tree::_notification(int p_what) {
 							RenderingServer::get_singleton()->canvas_item_add_line(drop_indicator_ci, Point2(item_line_x - line_join_nudge, horizontal_y + line_pixel_shift), Point2(line_end_x, horizontal_y + line_pixel_shift), theme_cache.drop_position_color, line_width);
 
 							// Vertical line to parent or stub.
-							if (drop_mode_section == 0) {
+							if (drop_mode_section == DROP_SECTION_ON) {
 								Point2 apos = Point2(item_line_x - arrow_full_size.width * 0.5, r.position.y + (r.size.y - arrow_full_size.height) / 2);
 
 								// Only draw the dropdown arrow if the item doesn't already have children and the folding arrow isn't hidden entirely.
@@ -5612,7 +5614,7 @@ void Tree::_notification(int p_what) {
 									// Collapsed children or no children, draw stub.
 									RenderingServer::get_singleton()->canvas_item_add_line(drop_indicator_ci, Point2(item_line_x + line_pixel_shift, horizontal_y - stub_height), Point2(item_line_x + line_pixel_shift, horizontal_y), theme_cache.drop_position_color, line_width);
 								}
-							} else if (drop_mode_section == 2) {
+							} else if (drop_mode_section == DROP_SECTION_FIRST) {
 								// Draw stub.
 								RenderingServer::get_singleton()->canvas_item_add_line(drop_indicator_ci, Point2(item_line_x + line_pixel_shift, horizontal_y - stub_height), Point2(item_line_x + line_pixel_shift, horizontal_y), theme_cache.drop_position_color, line_width);
 							}
@@ -5632,7 +5634,7 @@ void Tree::_notification(int p_what) {
 							}
 
 							// Vertical line or stub.
-							float line_height = (drop_mode_section == 1) ? vertical_offset + total_height : vertical_offset;
+							float line_height = (drop_mode_section == DROP_SECTION_BELOW) ? vertical_offset + total_height : vertical_offset;
 
 							if (walk == target_parent && line_height > 0) {
 								// Draw from parent's bottom edge to horizontal line.
@@ -6818,10 +6820,10 @@ void Tree::_do_incr_search(const String &p_add) {
 	ensure_cursor_is_visible();
 }
 
-TreeItem *Tree::_find_item_at_pos(TreeItem *p_item, const Point2 &p_pos, int &r_column, int &r_height, int &r_section, bool p_sticky_check) const {
+TreeItem *Tree::_find_item_at_pos(TreeItem *p_item, const Point2 &p_pos, int &r_column, int &r_height, DropSection &r_section, bool p_sticky_check) const {
 	r_column = -1;
 	r_height = 0;
-	r_section = COLUMN_NOT_FOUND;
+	r_section = DROP_SECTION_NOT_FOUND;
 
 	if (!root) {
 		return nullptr;
@@ -6884,50 +6886,50 @@ TreeItem *Tree::_find_item_at_pos(TreeItem *p_item, const Point2 &p_pos, int &r_
 
 				if (drop_mode_flags == DROP_MODE_ON_ITEM) {
 					// When only on item drops are allowed.
-					r_section = item_allows_drop ? 0 : COLUMN_NOT_FOUND;
+					r_section = item_allows_drop ? DROP_SECTION_ON : DROP_SECTION_NOT_FOUND;
 				} else if (drop_mode_flags == DROP_MODE_INBETWEEN) {
 					// When only sibling drops are allowed.
 					if (parent_allows_drop) { // Parent must accept children.
-						r_section = pos.y < r_height / 2 ? -1 : 1; // Above or below.
+						r_section = pos.y < r_height / 2 ? DROP_SECTION_ABOVE : DROP_SECTION_BELOW; // Above or below.
 					} else {
-						r_section = COLUMN_NOT_FOUND;
+						r_section = DROP_SECTION_NOT_FOUND;
 					}
-				} else if (drop_mode_flags) {
+				} else if (drop_mode_flags != DROP_MODE_DISABLED) {
 					// When either are allowed, section is determined by cursor position.
 					if (!over_content_area) {
 						// In indent space.
 						if (pos.y < r_height / 2 && current_item_depth > 0) {
-							r_section = parent_allows_drop ? -1 : COLUMN_NOT_FOUND; // Sibling above.
+							r_section = parent_allows_drop ? DROP_SECTION_ABOVE : DROP_SECTION_NOT_FOUND; // Sibling above.
 						} else {
-							r_section = parent_allows_drop ? 1 : COLUMN_NOT_FOUND; // Sibling below.
+							r_section = parent_allows_drop ? DROP_SECTION_BELOW : DROP_SECTION_NOT_FOUND; // Sibling below.
 						}
 					} else if (pos.y < r_height / 4) {
 						// Near top edge.
 						bool item_can_have_siblings = (p_item != root) && (current_item_depth > 0 || hide_root); // Disqualify root.
 						if (item_can_have_siblings) {
-							r_section = parent_allows_drop ? -1 : COLUMN_NOT_FOUND; // Sibling above.
+							r_section = parent_allows_drop ? DROP_SECTION_ABOVE : DROP_SECTION_NOT_FOUND; // Sibling above.
 						} else {
-							r_section = item_allows_drop ? 0 : COLUMN_NOT_FOUND; // On root, or as last child of root.
+							r_section = item_allows_drop ? DROP_SECTION_ON : DROP_SECTION_NOT_FOUND; // On root, or as last child of root.
 						}
 					} else if (pos.y >= r_height * 3 / 4) {
 						// Near bottom edge.
 						if (p_item->first_child && item_allows_drop) {
-							r_section = 2; // As first child.
+							r_section = DROP_SECTION_FIRST; // As first child.
 						} else {
-							r_section = parent_allows_drop ? 1 : COLUMN_NOT_FOUND; // Sibling below.
+							r_section = parent_allows_drop ? DROP_SECTION_ON : DROP_SECTION_NOT_FOUND; // Sibling below.
 						}
 					} else {
 						// Middle zone.
 						if (item_allows_drop) {
-							r_section = 0; // On item, or as last child.
+							r_section = DROP_SECTION_ON; // On item, or as last child.
 						} else if (parent_allows_drop) {
-							r_section = pos.y < r_height / 2 ? -1 : 1; // Above or below as sibling.
+							r_section = pos.y < r_height / 2 ? DROP_SECTION_ABOVE : DROP_SECTION_BELOW; // Above or below as sibling.
 						} else {
-							r_section = COLUMN_NOT_FOUND;
+							r_section = DROP_SECTION_NOT_FOUND;
 						}
 					}
 				} else {
-					r_section = 0;
+					r_section = DROP_SECTION_ON;
 				}
 
 				for (int i = 0; i < columns.size(); i++) {
@@ -6979,7 +6981,7 @@ TreeItem *Tree::_find_item_at_pos(TreeItem *p_item, const Point2 &p_pos, int &r_
 		if (!p_item->get_parent() || !p_item->get_parent()->is_accepting_children()) {
 			return nullptr;
 		}
-		r_section = 1;
+		r_section = DROP_SECTION_BELOW;
 
 		Point2 col_pos = p_pos;
 		for (int i = 0; i < columns.size(); i++) {
@@ -7005,14 +7007,14 @@ TreeItem *Tree::_find_item_at_pos(TreeItem *p_item, const Point2 &p_pos, int &r_
 	return nullptr;
 }
 
-void Tree::_find_button_at_pos(const Point2 &p_pos, TreeItem *&r_item, int &r_column, int &r_index, int &r_section) const {
+void Tree::_find_button_at_pos(const Point2 &p_pos, TreeItem *&r_item, int &r_column, int &r_index, DropSection &r_section) const {
 	// When on a button, `r_index` is valid.
 	// When on an item, both `r_item` and `r_column` are valid.
 	// Otherwise, all output arguments are invalid.
 	r_item = nullptr;
 	r_column = -1;
 	r_index = -1;
-	r_section = -1;
+	r_section = DROP_SECTION_ABOVE;
 
 	if (!root) {
 		return;
@@ -7045,7 +7047,8 @@ void Tree::_find_button_at_pos(const Point2 &p_pos, TreeItem *&r_item, int &r_co
 		return; // Inside the scroll area.
 	}
 
-	int col, h, section;
+	int col, h;
+	DropSection section;
 	TreeItem *it = _find_item_at_pos(root, pos, col, h, section);
 	if (!it) {
 		return;
@@ -7170,7 +7173,8 @@ int Tree::get_column_at_position(const Point2 &p_pos) const {
 		pos.y += v_scroll->get_value();
 	}
 
-	int col, h, section;
+	int col, h;
+	DropSection section;
 	TreeItem *it = _find_item_at_pos(root, pos, col, h, section);
 
 	if (it) {
@@ -7179,9 +7183,9 @@ int Tree::get_column_at_position(const Point2 &p_pos) const {
 	return -1;
 }
 
-int Tree::get_drop_section_at_position(const Point2 &p_pos) const {
+Tree::DropSection Tree::get_drop_section_at_position(const Point2 &p_pos) const {
 	if (!root || !Rect2(Vector2(), get_size()).has_point(p_pos) || !drop_mode_flags) {
-		return COLUMN_NOT_FOUND;
+		return DROP_SECTION_NOT_FOUND;
 	}
 
 	Point2 pos = p_pos;
@@ -7192,7 +7196,7 @@ int Tree::get_drop_section_at_position(const Point2 &p_pos) const {
 	pos -= margin_offset;
 	pos.y -= _get_title_button_height();
 	if (pos.y + margin_offset.y < 0) {
-		return COLUMN_NOT_FOUND;
+		return DROP_SECTION_NOT_FOUND;
 	}
 
 	if (h_scroll->is_visible_in_tree()) {
@@ -7202,7 +7206,8 @@ int Tree::get_drop_section_at_position(const Point2 &p_pos) const {
 		pos.y += v_scroll->get_value();
 	}
 
-	int col, h, section;
+	int col, h;
+	DropSection section;
 	TreeItem *it = _find_item_at_pos(root, pos, col, h, section);
 
 	if (it) {
@@ -7210,14 +7215,14 @@ int Tree::get_drop_section_at_position(const Point2 &p_pos) const {
 			TreeItem *check = it->get_parent();
 			while (check) {
 				if (check->is_any_column_selected()) {
-					return COLUMN_NOT_FOUND;
+					return DROP_SECTION_NOT_FOUND;
 				}
 				check = check->get_parent();
 			}
 		}
 		return section;
 	}
-	return COLUMN_NOT_FOUND;
+	return DROP_SECTION_NOT_FOUND;
 }
 
 bool Tree::can_drop_data(const Point2 &p_point, const Variant &p_data) const {
@@ -7267,7 +7272,8 @@ TreeItem *Tree::get_item_at_position(const Point2 &p_pos) const {
 		pos.y += v_scroll->get_value();
 	}
 
-	int col, h, section;
+	int col, h;
+	DropSection section;
 	TreeItem *it = _find_item_at_pos(root, pos, col, h, section);
 
 	if (it) {
@@ -7293,7 +7299,8 @@ int Tree::get_button_id_at_position(const Point2 &p_pos) const {
 		}
 
 		TreeItem *it;
-		int col, index, section;
+		int col, index;
+		DropSection section;
 		_find_button_at_pos(p_pos, it, col, index, section);
 
 		if (index == -1) {
@@ -7339,7 +7346,8 @@ String Tree::get_tooltip(const Point2 &p_pos) const {
 	}
 
 	TreeItem *it;
-	int col, index, section;
+	int col, index;
+	DropSection section;
 	_find_button_at_pos(p_pos, it, col, index, section);
 
 	if (index != -1) {
@@ -7371,7 +7379,8 @@ Node::AutoTranslateMode Tree::get_tooltip_auto_translate_mode_at(const Point2 &p
 	}
 
 	TreeItem *it;
-	int col, index, section;
+	int col, index;
+	DropSection section;
 	_find_button_at_pos(p_at, it, col, index, section);
 
 	if (it) {
@@ -7420,19 +7429,19 @@ bool Tree::is_drag_unfolding_enabled() const {
 	return enable_drag_unfolding;
 }
 
-void Tree::set_drop_mode_flags(int p_flags) {
+void Tree::set_drop_mode_flags(BitField<DropModeFlags> p_flags) {
 	if (drop_mode_flags == p_flags) {
 		return;
 	}
 	drop_mode_flags = p_flags;
-	if (drop_mode_flags == 0) {
+	if (drop_mode_flags == DROP_MODE_DISABLED) {
 		_reset_drop_mode_over();
 	}
 
 	queue_redraw();
 }
 
-int Tree::get_drop_mode_flags() const {
+BitField<Tree::DropModeFlags> Tree::get_drop_mode_flags() const {
 	return drop_mode_flags;
 }
 
