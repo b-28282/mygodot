@@ -1,0 +1,14 @@
+name: sync
+on:
+  workflow-dispatch:
+  schedule:
+    - cron: '* * * * *'
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - run: gh repo sync godotengine/godot -b master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
